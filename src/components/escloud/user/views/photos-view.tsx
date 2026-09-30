@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMediaList } from "../../shared/use-media-list";
 import { MediaSkeleton, EmptyState, ViewToggle } from "../../shared/media-card";
 import { Input } from "@/components/ui/input";
@@ -15,10 +15,14 @@ import { cn } from "@/lib/utils";
 
 export function PhotosView() {
   const user = useAuthStore((s) => s.user)!;
+  const refreshSession = useAuthStore((s) => s.refreshSession);
   const addFiles = useUploadStore((s) => s.addFiles);
   const setView = useUIStore((s) => s.setView);
   const setOverlay = useUIStore((s) => s.setOverlay);
   const canUpload = user.uploadEnabled && hasPermission(user.permissions, PERMISSIONS.UPLOAD_PHOTOS);
+
+  // Refresh session on mount so upload permission is current
+  useEffect(() => { refreshSession(); }, [refreshSession]);
 
   const [view, setViewMode] = useState<"grid" | "list">("grid");
   const [search, setSearch] = useState("");

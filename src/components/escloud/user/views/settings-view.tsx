@@ -44,6 +44,7 @@ const ALL_NAV_ITEMS = [
 
 export function SettingsView() {
   const user = useAuthStore((s) => s.user)!;
+  const refreshSession = useAuthStore((s) => s.refreshSession);
   const setNavPrefs = useUIStore((s) => s.setNavPrefs);
   const setVideoPrefs = useUIStore((s) => s.setVideoPrefs);
   const [pref, setPref] = useState<NavPref | null>(null);
@@ -54,6 +55,8 @@ export function SettingsView() {
   const load = async () => {
     setLoading(true);
     try {
+      // Refresh session first so permissions are up-to-date
+      await refreshSession();
       const r = await fetch("/api/user/nav-prefs");
       const d = await r.json();
       setPref({

@@ -65,26 +65,63 @@ export function MediaViewerOverlay({}: Props) {
       try {
         // Determine which type filter to use
         const typeFilter = overlay === "video-player" ? "video" : overlay === "photo-viewer" ? "photo" : undefined;
-        // If user is admin, we use admin/users/[id]/content if ownerId is provided, else /api/media
-        const url = typeFilter
+        // Fetch the paginated list of accessible media for swipe navigation
+        const listUrl = typeFilter
           ? `/api/media?type=${typeFilter}&pageSize=200`
           : `/api/media?pageSize=200`;
-        const r = await fetch(url);
+        const r = await fetch(listUrl);
         const d = await r.json();
         if (cancelled) return;
         const list: ApiMediaItem[] = d.items ?? [];
-        setItems(list);
         const i = list.findIndex((m) => m.id === mediaId);
+
         if (i >= 0) {
+          // Media is in the list — use the list as siblings
+          setItems(list);
           setIndex(i);
         } else {
-          // Try to fetch just this one media
-          // For admin: if media not in user's view, fetch from admin stats or skip
-          setItems([]);
-          setIndex(-1);
+          // Fallback: fetch single media item directly
+          // This handles the case where a media is accessible but not in the first 200 results
+          // (e.g., admin viewing a user's private media, or a media beyond page 1)
+          try {
+            const singleR = await fetch(`/api/media/${mediaId}`);
+            if (singleR.ok) {
+              const singleD = await singleR.json();
+              if (cancelled) return;
+              if (singleD.item) {
+                // Use just this single item (no swipe navigation)
+                setItems([singleD.item]);
+                setIndex(0);
+                // If admin or owner, also load access info
+                if (singleD.accessUsers) {
+                  setAccessUsers(singleD.accessUsers);
+                }
+              } else {
+                setItems([]);
+                setIndex(-1);
+              }
+            } else if (singleR.status === 403) {
+              if (cancelled) return;
+              setItems([]);
+              setIndex(-1);
+              toast.error("You don't have permission to access this content");
+            } else {
+              if (cancelled) return;
+              setItems([]);
+              setIndex(-1);
+            }
+          } catch {
+            if (cancelled) return;
+            setItems([]);
+            setIndex(-1);
+          }
         }
       } catch (e) {
         console.error(e);
+        if (!cancelled) {
+          setItems([]);
+          setIndex(-1);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

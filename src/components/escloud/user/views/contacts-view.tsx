@@ -25,8 +25,12 @@ import type { ApiMediaItem } from "@/lib/types";
 
 export function ContactsView() {
   const user = useAuthStore((s) => s.user)!;
+  const refreshSession = useAuthStore((s) => s.refreshSession);
   const addFiles = useUploadStore((s) => s.addFiles);
   const canUpload = user.uploadEnabled && hasPermission(user.permissions, PERMISSIONS.UPLOAD_CONTACTS);
+
+  // Refresh session on mount so upload permission is current
+  useEffect(() => { refreshSession(); }, [refreshSession]);
 
   const [items, setItems] = useState<ApiMediaItem[]>([]);
   const [loading, setLoading] = useState(true);

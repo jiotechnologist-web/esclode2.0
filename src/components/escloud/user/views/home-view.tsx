@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 export function HomeView() {
   const user = useAuthStore((s) => s.user)!;
+  const refreshSession = useAuthStore((s) => s.refreshSession);
   const setView = useUIStore((s) => s.setView);
   const setOverlay = useUIStore((s) => s.setOverlay);
   const addFiles = useUploadStore((s) => s.addFiles);
@@ -26,6 +27,8 @@ export function HomeView() {
   const [recentPhotos, setRecentPhotos] = useState<ApiMediaItem[]>([]);
 
   useEffect(() => {
+    // Refresh session first so permissions/storage are up-to-date
+    refreshSession();
     (async () => {
       try {
         const [p, v, ph] = await Promise.all([
@@ -42,6 +45,12 @@ export function HomeView() {
 
   const storagePct = profile ? Math.min(100, (profile.storage.used / profile.storage.quota) * 100) : 0;
   const hasPrivateAccess = hasPermission(user.permissions, PERMISSIONS.PRIVATE_ACCESS);
+  const canUploadAny = user.uploadEnabled && (
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_VIDEOS) ||
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_PHOTOS) ||
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_DOCUMENTS) ||
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_CONTACTS)
+  );
 
   const stats = [
     { label: "Videos", value: profile?.storage.byType.find((b: any) => b.type === "video")?.count ?? 0, icon: Video, color: "from-violet-500 to-fuchsia-500", view: "videos" as const },
@@ -69,23 +78,25 @@ export function HomeView() {
           <Button variant="outline" onClick={() => setView("settings")}>
             <SettingsIcon className="w-4 h-4 mr-2" /> Settings
           </Button>
-          <label className="cursor-pointer">
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              onChange={async (e) => {
-                const files = Array.from(e.target.files ?? []);
-                if (files.length > 0) {
-                  await addFiles(files, { visibility: "public" });
-                  toast.success(`Uploading ${files.length} file(s)`);
-                }
-              }}
-            />
-            <Button className="bg-brand-gradient text-white hover:opacity-95">
-              <Upload className="w-4 h-4 mr-2" /> Upload Files
-            </Button>
-          </label>
+          {canUploadAny && (
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files ?? []);
+                  if (files.length > 0) {
+                    await addFiles(files, { visibility: "public" });
+                    toast.success(`Uploading ${files.length} file(s)`);
+                  }
+                }}
+              />
+              <Button className="bg-brand-gradient text-white hover:opacity-95">
+                <Upload className="w-4 h-4 mr-2" /> Upload Files
+              </Button>
+            </label>
+          )}
         </div>
       </div>
 

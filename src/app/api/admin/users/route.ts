@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestContext, jsonError, jsonOk } from "@/lib/api";
-import { DEFAULT_USER_PERMISSIONS, PERMISSIONS, serializePermissions } from "@/lib/permissions";
+import { DEFAULT_USER_PERMISSIONS, PERMISSIONS, ADMIN_TOGGLEABLE_PERMISSIONS, serializePermissions } from "@/lib/permissions";
 import { hashPassword, logAdminActivity, getClientIp } from "@/lib/auth";
 
 // GET /api/admin/users — list all users
@@ -171,11 +171,14 @@ export async function PATCH(req: NextRequest) {
       if (action === "grant_private_access") {
         if (!perms.includes(PERMISSIONS.PRIVATE_ACCESS)) {
           perms.push(PERMISSIONS.PRIVATE_ACCESS);
-          if (!perms.includes(PERMISSIONS.VIEW_PRIVATE)) perms.push(PERMISSIONS.VIEW_PRIVATE);
         }
+        if (!perms.includes(PERMISSIONS.VIEW_PRIVATE)) perms.push(PERMISSIONS.VIEW_PRIVATE);
       } else if (action === "revoke_private_access") {
         const idx = perms.indexOf(PERMISSIONS.PRIVATE_ACCESS);
         if (idx >= 0) perms.splice(idx, 1);
+        // Also remove view_private if user has no other reason for it
+        const vpIdx = perms.indexOf(PERMISSIONS.VIEW_PRIVATE);
+        if (vpIdx >= 0) perms.splice(vpIdx, 1);
       } else if (action === "grant_upload") {
         if (!perms.includes(PERMISSIONS.UPLOAD_VIDEOS)) perms.push(PERMISSIONS.UPLOAD_VIDEOS);
         if (!perms.includes(PERMISSIONS.UPLOAD_PHOTOS)) perms.push(PERMISSIONS.UPLOAD_PHOTOS);
@@ -186,6 +189,22 @@ export async function PATCH(req: NextRequest) {
           const i = perms.indexOf(p);
           if (i >= 0) perms.splice(i, 1);
         }
+      } else if (action === "grant_qr_scan") {
+        if (!perms.includes(PERMISSIONS.QR_SCAN)) perms.push(PERMISSIONS.QR_SCAN);
+      } else if (action === "revoke_qr_scan") {
+        const i = perms.indexOf(PERMISSIONS.QR_SCAN);
+        if (i >= 0) perms.splice(i, 1);
+      } else if (action === "grant_all") {
+        // Grant ALL toggleable permissions (including private_access, qr_scan)
+        for (const p of ADMIN_TOGGLEABLE_PERMISSIONS) {
+          if (!perms.includes(p.key)) perms.push(p.key);
+        }
+      } else if (action === "revoke_all") {
+        // Revoke all toggleable permissions except the system defaults
+        const toggleable = new Set(ADMIN_TOGGLEABLE_PERMISSIONS.map((p) => p.key));
+        const filtered = perms.filter((p) => !toggleable.has(p));
+        perms.length = 0;
+        perms.push(...filtered);
       } else if (action === "activate") {
         await db.user.update({ where: { id: uid }, data: { status: "active" } });
         updated++;

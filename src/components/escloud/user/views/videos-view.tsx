@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMediaList, formatBytes } from "../../shared/use-media-list";
 import { MediaGrid, MediaSkeleton, EmptyState, ViewToggle } from "../../shared/media-card";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,12 @@ import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 
 export function VideosView() {
   const user = useAuthStore((s) => s.user)!;
+  const refreshSession = useAuthStore((s) => s.refreshSession);
   const addFiles = useUploadStore((s) => s.addFiles);
   const canUpload = user.uploadEnabled && hasPermission(user.permissions, PERMISSIONS.UPLOAD_VIDEOS);
+
+  // Refresh session on mount so upload permission is current
+  useEffect(() => { refreshSession(); }, [refreshSession]);
 
   const [view, setView] = useState<"grid" | "list">("grid");
   const [search, setSearch] = useState("");

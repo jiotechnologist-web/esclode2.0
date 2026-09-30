@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatBytes, formatDate, formatRelative } from "../../shared/use-media-list";
-import { DEFAULT_USER_PERMISSIONS, PERMISSIONS } from "@/lib/permissions";
+import { DEFAULT_USER_PERMISSIONS, PERMISSIONS, ADMIN_TOGGLEABLE_PERMISSIONS } from "@/lib/permissions";
 import type { ApiMediaItem } from "@/lib/types";
 import { useUploadStore } from "@/stores/upload";
 
@@ -256,24 +256,64 @@ export function AdminUserDetailView() {
         <TabsContent value="permissions" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Permissions</CardTitle>
-              <CardDescription className="text-xs">Toggle individual capabilities for this user</CardDescription>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div>
+                  <CardTitle className="text-base">Permissions</CardTitle>
+                  <CardDescription className="text-xs">Toggle individual capabilities for this user</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setPermState(ADMIN_TOGGLEABLE_PERMISSIONS.map((p) => p.key));
+                      setEditing(true);
+                    }}
+                  >
+                    Grant All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      // Revoke all toggleable permissions (keep system defaults like view_videos etc that aren't in the toggleable list)
+                      const toggleable = new Set(ADMIN_TOGGLEABLE_PERMISSIONS.map((p) => p.key));
+                      setPermState(permState.filter((p) => !toggleable.has(p)));
+                      setEditing(true);
+                    }}
+                  >
+                    Revoke All
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {DEFAULT_USER_PERMISSIONS.map((p) => (
-                  <div key={p} className="flex items-center justify-between p-2 rounded-lg border">
-                    <span className="text-sm capitalize">{p.replace(/_/g, " ")}</span>
-                    <Switch
-                      checked={permState.includes(p)}
-                      onCheckedChange={(checked) => {
-                        setPermState((s) => checked ? [...s, p] : s.filter((x) => x !== p));
-                        setEditing(true);
-                      }}
-                    />
+              {/* Group permissions by category for clearer UI */}
+              {Object.entries(
+                ADMIN_TOGGLEABLE_PERMISSIONS.reduce((acc, p) => {
+                  if (!acc[p.group]) acc[p.group] = [];
+                  acc[p.group].push(p);
+                  return acc;
+                }, {} as Record<string, typeof ADMIN_TOGGLEABLE_PERMISSIONS>)
+              ).map(([group, perms]) => (
+                <div key={group} className="mb-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{group}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {perms.map((p) => (
+                      <div key={p.key} className="flex items-center justify-between p-2 rounded-lg border">
+                        <span className="text-sm">{p.label}</span>
+                        <Switch
+                          checked={permState.includes(p.key)}
+                          onCheckedChange={(checked) => {
+                            setPermState((s) => checked ? [...s, p.key] : s.filter((x) => x !== p.key));
+                            setEditing(true);
+                          }}
+                        />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
               {editing && (
                 <Button onClick={saveUser} className="mt-3 bg-brand-gradient text-white">
                   <Save className="w-3.5 h-3.5 mr-1.5" /> Save Changes

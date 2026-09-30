@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/select";
 import {
   Search, UserPlus, Loader2, Lock, ShieldCheck, Upload as UploadIcon, Eye, MoreHorizontal,
+  CheckCircle2, QrCode,
 } from "lucide-react";
 import type { ApiUserListItem } from "@/lib/types";
 import { formatBytes, formatRelative } from "../../shared/use-media-list";
@@ -133,27 +134,43 @@ export function AdminUsersView() {
 
       {/* Bulk actions toolbar */}
       {selected.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-          <span className="text-sm font-medium">{selected.length} selected</span>
-          <div className="flex-1" />
-          <Button size="sm" variant="outline" onClick={() => bulkAction("grant_private_access")} disabled={busy}>
-            <Lock className="w-3.5 h-3.5 mr-1.5" /> Grant Private
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => bulkAction("revoke_private_access")} disabled={busy}>
-            <Lock className="w-3.5 h-3.5 mr-1.5" /> Revoke Private
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => bulkAction("grant_upload")} disabled={busy}>
-            <UploadIcon className="w-3.5 h-3.5 mr-1.5" /> Allow Upload
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => bulkAction("revoke_upload")} disabled={busy}>
-            <UploadIcon className="w-3.5 h-3.5 mr-1.5" /> Block Upload
-          </Button>
-          <Button size="sm" variant="outline" onClick={() => bulkAction("activate")} disabled={busy}>Activate</Button>
-          <Button size="sm" variant="outline" onClick={() => bulkAction("suspend")} disabled={busy}>Suspend</Button>
-          <Button size="sm" variant="outline" onClick={() => bulkAction("force_logout")} disabled={busy}>Force logout</Button>
-          <Button size="sm" variant="destructive" onClick={() => bulkAction("delete")} disabled={busy}>
-            Delete
-          </Button>
+        <div className="space-y-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{selected.length} selected</span>
+            <div className="flex-1" />
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => bulkAction("grant_all")} disabled={busy}>
+              <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Grant All Permissions
+            </Button>
+            <Button size="sm" variant="destructive" onClick={() => bulkAction("delete")} disabled={busy}>
+              Delete
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-emerald-500/20">
+            <Button size="sm" variant="outline" onClick={() => bulkAction("grant_private_access")} disabled={busy}>
+              <Lock className="w-3.5 h-3.5 mr-1" /> Grant Private
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction("revoke_private_access")} disabled={busy}>
+              <Lock className="w-3.5 h-3.5 mr-1" /> Revoke Private
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction("grant_upload")} disabled={busy}>
+              <UploadIcon className="w-3.5 h-3.5 mr-1" /> Allow Upload
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction("revoke_upload")} disabled={busy}>
+              <UploadIcon className="w-3.5 h-3.5 mr-1" /> Block Upload
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction("grant_qr_scan")} disabled={busy}>
+              <QrCode className="w-3.5 h-3.5 mr-1" /> Allow QR Scan
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction("revoke_qr_scan")} disabled={busy}>
+              <QrCode className="w-3.5 h-3.5 mr-1" /> Block QR Scan
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction("activate")} disabled={busy}>Activate</Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction("suspend")} disabled={busy}>Suspend</Button>
+            <Button size="sm" variant="outline" onClick={() => bulkAction("force_logout")} disabled={busy}>Force logout</Button>
+            <Button size="sm" variant="ghost" onClick={() => bulkAction("revoke_all")} disabled={busy}>
+              Revoke All
+            </Button>
+          </div>
         </div>
       )}
 

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMediaList, formatBytes, formatRelative } from "../../shared/use-media-list";
 import { MediaSkeleton, EmptyState } from "../../shared/media-card";
 import { Input } from "@/components/ui/input";
@@ -67,8 +67,12 @@ function colorFor(docType: string | null): string {
 
 export function DocumentsView() {
   const user = useAuthStore((s) => s.user)!;
+  const refreshSession = useAuthStore((s) => s.refreshSession);
   const addFiles = useUploadStore((s) => s.addFiles);
   const canUpload = user.uploadEnabled && hasPermission(user.permissions, PERMISSIONS.UPLOAD_DOCUMENTS);
+
+  // Refresh session on mount so upload permission is current
+  useEffect(() => { refreshSession(); }, [refreshSession]);
 
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");

@@ -24,7 +24,13 @@ import { ImpersonationBanner } from "../shared/impersonation-banner";
 
 export function UserApp() {
   const user = useAuthStore((s) => s.user);
+  const refreshSession = useAuthStore((s) => s.refreshSession);
   const view = useUIStore((s) => s.view) as UserView;
+
+  // Refresh session whenever the view changes (so permissions reflect admin changes immediately)
+  useEffect(() => {
+    refreshSession();
+  }, [view, refreshSession]);
 
   if (!user) return null;
 
