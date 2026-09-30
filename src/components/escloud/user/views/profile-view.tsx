@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/stores/auth";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,15 +9,20 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { UserCircle, Mail, Phone, Lock, LogOut, Save, Camera, Shield, HardDrive, Calendar } from "lucide-react";
+import {
+  UserCircle, Mail, Phone, Lock, LogOut, Save, Camera, Shield, HardDrive, Check, X,
+  Settings as SettingsIcon, Upload as UploadIcon, Heart, Video, Image as ImageIcon, FileText, Users as UsersIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { formatBytes, formatDate } from "../../shared/use-media-list";
-import { PERMISSIONS, hasPermission } from "@/lib/permissions";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { useUIStore } from "@/stores/ui";
 
 export function ProfileView() {
   const user = useAuthStore((s) => s.user)!;
   const logout = useAuthStore((s) => s.logout);
   const fetchSession = useAuthStore((s) => s.fetchSession);
+  const setView = useUIStore((s) => s.setView);
 
   const [profile, setProfile] = useState<any>(null);
   const [editing, setEditing] = useState(false);
@@ -43,9 +48,7 @@ export function ProfileView() {
     } catch {}
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const saveProfile = async () => {
     setSaving(true);
@@ -70,10 +73,7 @@ export function ProfileView() {
 
   const changePwd = async () => {
     if (!currentPwd || !newPwd) return;
-    if (newPwd.length < 6) {
-      toast.error("New password too short");
-      return;
-    }
+    if (newPwd.length < 6) { toast.error("New password too short"); return; }
     setSaving(true);
     try {
       const r = await fetch("/api/auth/password", {
@@ -110,41 +110,36 @@ export function ProfileView() {
 
   const storagePct = profile ? Math.min(100, (profile.storage.used / profile.storage.quota) * 100) : 0;
 
+  const hasPrivateAccess = hasPermission(user.permissions, PERMISSIONS.PRIVATE_ACCESS);
+  const canUpload = user.uploadEnabled && (
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_VIDEOS) ||
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_PHOTOS) ||
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_DOCUMENTS) ||
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_CONTACTS)
+  );
+
   const permLabels: Record<string, string> = {
-    view_videos: "View Videos",
-    view_photos: "View Photos",
-    view_private: "View Private",
-    view_documents: "View Documents",
-    view_contacts: "View Contacts",
-    view_favorites: "View Favorites",
-    view_recent: "View Recent",
-    view_uploads: "View Uploads",
-    upload_videos: "Upload Videos",
-    upload_photos: "Upload Photos",
-    upload_documents: "Upload Documents",
-    upload_contacts: "Upload Contacts",
-    download_videos: "Download Videos",
-    download_photos: "Download Photos",
-    download_documents: "Download Documents",
-    download_contacts: "Download Contacts",
-    delete_own: "Delete Own",
-    edit_own: "Edit Own",
-    create_albums: "Create Albums",
-    create_folders: "Create Folders",
-    use_favorites: "Use Favorites",
-    qr_login: "QR Login",
-    advanced_video_play: "Advanced Video Play",
+    view_videos: "View Videos", view_photos: "View Photos", view_private: "View Private",
+    view_documents: "View Documents", view_contacts: "View Contacts", view_favorites: "View Favorites",
+    view_recent: "View Recent", view_uploads: "View Uploads",
+    upload_videos: "Upload Videos", upload_photos: "Upload Photos", upload_documents: "Upload Documents", upload_contacts: "Upload Contacts",
+    download_videos: "Download Videos", download_photos: "Download Photos", download_documents: "Download Documents", download_contacts: "Download Contacts",
+    delete_own: "Delete Own", edit_own: "Edit Own",
+    create_albums: "Create Albums", create_folders: "Create Folders", use_favorites: "Use Favorites",
+    qr_login: "QR Login", qr_scan: "Scan QR Codes", advanced_video_play: "Advanced Video Play",
+    private_access: "Private Access",
   };
 
   return (
     <div className="px-3 md:px-6 py-4 md:py-6 max-w-5xl mx-auto space-y-4">
       {/* Profile header card */}
-      <Card>
-        <CardContent className="pt-6 pb-6">
-          <div className="flex flex-col md:flex-row items-center md:items-start gap-4">
+      <Card className="overflow-hidden">
+        <div className="h-24 bg-brand-gradient" />
+        <CardContent className="-mt-12 pb-6">
+          <div className="flex flex-col md:flex-row items-center md:items-end gap-4">
             <div className="relative">
-              <Avatar className="w-24 h-24">
-                <AvatarFallback className="bg-brand-gradient text-white text-3xl">
+              <Avatar className="w-24 h-24 border-4 border-background shadow-lg">
+                <AvatarFallback className="bg-white text-emerald-600 text-3xl">
                   {user.displayName?.[0]?.toUpperCase() ?? user.username[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -164,10 +159,21 @@ export function ProfileView() {
             <div className="flex-1 text-center md:text-left">
               <h1 className="text-2xl font-bold">{user.displayName ?? user.username}</h1>
               <p className="text-sm text-muted-foreground">{user.email}</p>
-              <div className="mt-2 flex flex-wrap items-center gap-1 justify-center md:justify-start">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 justify-center md:justify-start">
                 <Badge variant="secondary" className="capitalize">{user.role}</Badge>
-                <Badge variant="outline">Status: {user.status}</Badge>
-                {user.approvalRequired && <Badge variant="outline">Upload approval required</Badge>}
+                <Badge variant="outline" className={user.status === "active" ? "text-emerald-600 border-emerald-500/30" : ""}>
+                  {user.status}
+                </Badge>
+                {hasPrivateAccess && (
+                  <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-500/30">
+                    <Lock className="w-2.5 h-2.5 mr-0.5" />Private Access
+                  </Badge>
+                )}
+                {canUpload && (
+                  <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                    <UploadIcon className="w-2.5 h-2.5 mr-0.5" />Can Upload
+                  </Badge>
+                )}
               </div>
             </div>
             <Button
@@ -183,8 +189,56 @@ export function ProfileView() {
         </CardContent>
       </Card>
 
+      {/* Quick stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="p-0">
+          <CardContent className="pt-4 flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-violet-500/15 flex items-center justify-center">
+              <Video className="w-4 h-4 text-violet-500" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{profile?.storage.byType.find((b: any) => b.type === "video")?.count ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Videos</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="p-0">
+          <CardContent className="pt-4 flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-amber-500/15 flex items-center justify-center">
+              <ImageIcon className="w-4 h-4 text-amber-500" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{profile?.storage.byType.find((b: any) => b.type === "photo")?.count ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Photos</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="p-0">
+          <CardContent className="pt-4 flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-sky-500/15 flex items-center justify-center">
+              <FileText className="w-4 h-4 text-sky-500" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{profile?.storage.byType.find((b: any) => b.type === "document")?.count ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Documents</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="p-0">
+          <CardContent className="pt-4 flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+              <UsersIcon className="w-4 h-4 text-emerald-500" />
+            </div>
+            <div>
+              <div className="text-xl font-bold">{profile?.storage.byType.find((b: any) => b.type === "contact")?.count ?? 0}</div>
+              <div className="text-xs text-muted-foreground">Contacts</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Tabs defaultValue="account">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="account">Account</TabsTrigger>
           <TabsTrigger value="security">Security</TabsTrigger>
           <TabsTrigger value="storage">Storage</TabsTrigger>
@@ -194,7 +248,7 @@ export function ProfileView() {
         <TabsContent value="account" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Account Information</CardTitle>
+              <CardTitle className="text-base flex items-center gap-2"><UserCircle className="w-4 h-4" />Account Information</CardTitle>
               <CardDescription className="text-xs">Update your profile details</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -218,9 +272,7 @@ export function ProfileView() {
               </div>
               <div className="flex items-center gap-2">
                 {!editing ? (
-                  <Button variant="outline" onClick={() => setEditing(true)}>
-                    Edit
-                  </Button>
+                  <Button variant="outline" onClick={() => setEditing(true)}>Edit</Button>
                 ) : (
                   <>
                     <Button onClick={saveProfile} disabled={saving}>
@@ -250,6 +302,16 @@ export function ProfileView() {
               </div>
               <Button onClick={changePwd} disabled={saving || !currentPwd || !newPwd}>
                 {saving ? "Updating…" : "Update Password"}
+              </Button>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><SettingsIcon className="w-4 h-4" />Application Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" onClick={() => setView("settings")}>
+                <SettingsIcon className="w-4 h-4 mr-1.5" /> Open Settings
               </Button>
             </CardContent>
           </Card>
@@ -286,10 +348,10 @@ export function ProfileView() {
               <CardDescription className="text-xs">Permissions are set by your administrator</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {user.permissions.map((p) => (
-                  <div key={p} className="flex items-center gap-2 text-xs p-2 rounded-md bg-muted/50 border">
-                    <Shield className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <div key={p} className="flex items-center gap-2 text-xs p-2.5 rounded-lg bg-muted/50 border">
+                    <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     <span>{permLabels[p] ?? p}</span>
                   </div>
                 ))}

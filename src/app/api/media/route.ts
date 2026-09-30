@@ -141,8 +141,21 @@ export async function GET(req: NextRequest) {
 
     return jsonOk({ items, page, pageSize, total });
   } catch (e: any) {
-    return jsonError(e?.message ?? "Failed to fetch media", 500);
+    console.error("Failed to fetch media:", e);
+    return jsonError("Something went wrong. Please try again.", 500);
   }
+}
+
+async function fetchPrivateAccessCounts(mediaIds: string[]): Promise<Record<string, number>> {
+  if (mediaIds.length === 0) return {};
+  const rows = await db.privateAccess.groupBy({
+    by: ["mediaId"],
+    where: { mediaId: { in: mediaIds } },
+    _count: { _all: true },
+  });
+  const map: Record<string, number> = {};
+  for (const r of rows) map[r.mediaId] = r._count._all;
+  return map;
 }
 
 function mapMediaWithUser(

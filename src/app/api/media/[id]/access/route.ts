@@ -28,12 +28,23 @@ export async function POST(
     if (body.makePrivate && isAdmin) {
       await db.media.update({ where: { id }, data: { visibility: "private" } });
     }
-    // Insert PrivateAccess records (skipDuplicates)
-    if (userIds.length > 0) {
-      await db.privateAccess.createMany({
-        data: userIds.map((uid) => ({ mediaId: id, userId: uid, grantedBy: ctx.user.id })),
-        skipDuplicates: true,
-      });
+    // Insert PrivateAccess records using a loop with upsert to enforce
+    // the unique(mediaId, userId) constraint across SQLite/Postgres.
+    // Also dedupe userIds within the request to avoid duplicate insert attempts.
+    const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+    for (const uid of uniqueIds) {
+      try {
+        const existing = await db.privateAccess.findUnique({
+          where: { mediaId_userId: { mediaId: id, userId: uid } },
+        });
+        if (!existing) {
+          await db.privateAccess.create({
+            data: { mediaId: id, userId: uid, grantedBy: ctx.user.id },
+          });
+        }
+      } catch (e) {
+        // Ignore concurrent inserts that violate the unique constraint
+      }
     }
   } else {
     if (userIds.length > 0) {

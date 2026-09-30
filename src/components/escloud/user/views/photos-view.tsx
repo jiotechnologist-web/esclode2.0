@@ -17,6 +17,7 @@ export function PhotosView() {
   const user = useAuthStore((s) => s.user)!;
   const addFiles = useUploadStore((s) => s.addFiles);
   const setView = useUIStore((s) => s.setView);
+  const setOverlay = useUIStore((s) => s.setOverlay);
   const canUpload = user.uploadEnabled && hasPermission(user.permissions, PERMISSIONS.UPLOAD_PHOTOS);
 
   const [view, setViewMode] = useState<"grid" | "list">("grid");
@@ -98,7 +99,7 @@ export function PhotosView() {
             <div
               key={p.id}
               className={cn("aspect-square rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity group relative")}
-              onClick={() => setView("photo-viewer", { mediaId: p.id })}
+              onClick={() => setOverlay("photo-viewer", { mediaId: p.id })}
             >
               {p.thumbnailUrl && (
                 <img src={p.thumbnailUrl} alt={p.name} className="w-full h-full object-cover" loading="lazy" />

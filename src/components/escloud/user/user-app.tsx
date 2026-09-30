@@ -18,6 +18,7 @@ import { UploadsView } from "./views/uploads-view";
 import { FavoritesView } from "./views/favorites-view";
 import { RecentView } from "./views/recent-view";
 import { ProfileView } from "./views/profile-view";
+import { SettingsView } from "./views/settings-view";
 import { UploadManagerPanel } from "@/components/escloud/upload/upload-manager-panel";
 import { ImpersonationBanner } from "../shared/impersonation-banner";
 
@@ -27,6 +28,7 @@ export function UserApp() {
 
   if (!user) return null;
 
+  const hasPrivateAccess = hasPermission(user.permissions, PERMISSIONS.PRIVATE_ACCESS);
   const canViewPrivate = hasPermission(user.permissions, PERMISSIONS.VIEW_PRIVATE);
   const canUpload = user.uploadEnabled;
   const canViewVideos = hasPermission(user.permissions, PERMISSIONS.VIEW_VIDEOS);
@@ -36,18 +38,24 @@ export function UserApp() {
   const canViewFavorites = hasPermission(user.permissions, PERMISSIONS.VIEW_FAVORITES);
   const canViewRecent = hasPermission(user.permissions, PERMISSIONS.VIEW_RECENT);
   const canViewUploads = hasPermission(user.permissions, PERMISSIONS.VIEW_UPLOADS);
+  const canScanQR = hasPermission(user.permissions, PERMISSIONS.QR_SCAN);
 
-  const navItems: { key: UserView; label: string; icon: any; enabled: boolean; mobile?: boolean }[] = [
-    { key: "home", label: "Home", icon: Home, enabled: true, mobile: true },
-    { key: "videos", label: "Videos", icon: Video, enabled: canViewVideos, mobile: true },
-    { key: "photos", label: "Photos", icon: Image, enabled: canViewPhotos, mobile: true },
-    { key: "private", label: "Private", icon: Lock, enabled: canViewPrivate },
-    { key: "documents", label: "Documents", icon: FileText, enabled: canViewDocuments, mobile: true },
+  // Private menu shows if the user has either PRIVATE_ACCESS (their own private content)
+  // OR VIEW_PRIVATE (can see private content shared with them)
+  const showPrivateMenu = hasPrivateAccess || canViewPrivate;
+
+  const navItems: { key: UserView; label: string; icon: any; enabled: boolean; isPrivate?: boolean; isSystem?: boolean }[] = [
+    { key: "home", label: "Home", icon: Home, enabled: true, isSystem: true },
+    { key: "videos", label: "Videos", icon: Video, enabled: canViewVideos },
+    { key: "photos", label: "Photos", icon: Image, enabled: canViewPhotos },
+    { key: "private", label: "Private", icon: Lock, enabled: showPrivateMenu, isPrivate: true },
+    { key: "documents", label: "Documents", icon: FileText, enabled: canViewDocuments },
     { key: "contacts", label: "Contacts", icon: Users, enabled: canViewContacts },
     { key: "uploads", label: "Uploads", icon: Upload, enabled: canViewUploads && canUpload },
-    { key: "favorites", label: "Favorites", icon: Heart, enabled: canViewFavorites, mobile: true },
+    { key: "favorites", label: "Favorites", icon: Heart, enabled: canViewFavorites },
     { key: "recent", label: "Recent", icon: History, enabled: canViewRecent },
-    { key: "profile", label: "Profile", icon: UserCircle, enabled: true, mobile: true },
+    { key: "settings", label: "Settings", icon: SettingsIcon, enabled: true },
+    { key: "profile", label: "Profile", icon: UserCircle, enabled: true, isSystem: true },
   ];
 
   return (
@@ -66,6 +74,7 @@ export function UserApp() {
           {view === "uploads" && <UploadsView />}
           {view === "favorites" && <FavoritesView />}
           {view === "recent" && <RecentView />}
+          {view === "settings" && <SettingsView />}
           {view === "profile" && <ProfileView />}
         </div>
       </UserShell>
@@ -74,7 +83,6 @@ export function UserApp() {
   );
 }
 
-// Lazy icon imports
 import {
   Home,
   Video,
@@ -86,4 +94,5 @@ import {
   Heart,
   History,
   UserCircle,
+  Settings as SettingsIcon,
 } from "lucide-react";

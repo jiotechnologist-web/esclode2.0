@@ -407,3 +407,25 @@ model DailyUsage {
   @@index([userId])
   @@index([date])
 }
+
+// ---------------------------------------------------------------------------
+// USER NAV PREFERENCES (customizable mobile navigation)
+// ---------------------------------------------------------------------------
+
+model UserNavPref {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  // JSON-encoded array of view keys in display order; first 5 are shown as primary
+  primaryItems String @default("[]")
+  // JSON-encoded array of view keys hidden from the More menu
+  hiddenItems  String @default("[]")
+  // User video settings
+  preloadVideos Boolean @default(false)
+  advancedVideoPlay Boolean @default(true)
+  preferredQuality String @default("auto")
+  autoQuality Boolean @default(true)
+  preBufferLevel String @default("adaptive")
+  dataSaver Boolean @default(false)
+  updatedAt DateTime @updatedAt
+}
+

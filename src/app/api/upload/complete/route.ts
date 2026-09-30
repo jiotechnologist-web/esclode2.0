@@ -1,14 +1,10 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { getRequestContext, jsonError, jsonOk, checkPermission } from "@/lib/api";
-import { resolveStoragePath, getMediaTypeDir, getStorageRelativePath, PATHS } from "@/lib/storage";
+import { getRequestContext, jsonError, jsonOk } from "@/lib/api";
+import { resolveStoragePath, getMediaTypeDir, getStorageRelativePath } from "@/lib/storage";
 import { promises as fs } from "fs";
 import path from "path";
 import { ensureThumbnailForImage, generatePhotoMetadata } from "@/lib/media";
-import { serializePermissions } from "@/lib/permissions";
-
-const THUMB_SIZE = 480;
-import sharp from "sharp";
 
 export async function POST(req: NextRequest) {
   const ctx = await getRequestContext(req);
@@ -28,7 +24,7 @@ export async function POST(req: NextRequest) {
       return jsonError("Not all chunks received", 400);
     }
 
-    // Move the file from temp to permanent location
+    // Move the file from temp to permanent location (ONE file, ONE media record)
     const tmpAbs = resolveStoragePath(upload.storagePath);
     const dir = getMediaTypeDir(upload.mediaType as any);
     await fs.mkdir(dir, { recursive: true });
@@ -58,7 +54,7 @@ export async function POST(req: NextRequest) {
     const approvalStatus = owner?.approvalRequired ? "pending" : "approved";
     const status = approvalStatus === "pending" ? "pending" : "ready";
 
-    // Create media record
+    // Create ONE media record (regardless of how many users will have access)
     const media = await db.media.create({
       data: {
         type: upload.mediaType,
@@ -78,14 +74,27 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Assign private access if requested
+    // Assign private access to multiple users — but always to the SAME media record.
+    // We use a loop with upsert instead of createMany+skipDuplicates for SQLite compatibility
+    // and to guarantee the unique(mediaId, userId) constraint is respected.
     if (media.visibility === "private" && Array.isArray(body.assignUserIds)) {
-      const ids = (body.assignUserIds as string[]).filter(Boolean);
-      if (ids.length > 0) {
-        await db.privateAccess.createMany({
-          data: ids.map((uid) => ({ mediaId: media.id, userId: uid, grantedBy: ctx.user!.id })),
-          skipDuplicates: true,
-        });
+      const ids = (body.assignUserIds as string[])
+        .filter(Boolean)
+        .filter((v, i, arr) => arr.indexOf(v) === i); // dedupe within request
+      for (const uid of ids) {
+        try {
+          // Check existing first to avoid unique constraint violation
+          const existing = await db.privateAccess.findUnique({
+            where: { mediaId_userId: { mediaId: media.id, userId: uid } },
+          });
+          if (!existing) {
+            await db.privateAccess.create({
+              data: { mediaId: media.id, userId: uid, grantedBy: ctx.user!.id },
+            });
+          }
+        } catch (e) {
+          // Ignore duplicates from concurrent requests
+        }
       }
     }
 
@@ -142,6 +151,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
+    console.error("Upload complete failed:", e);
     return jsonError(e?.message ?? "Upload complete failed", 500);
   }
 }

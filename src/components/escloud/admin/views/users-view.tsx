@@ -6,37 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Switch } from "@/components/ui/switch";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Search,
-  UserPlus,
-  Loader2,
-  CheckCircle2,
-  PauseCircle,
-  Trash2,
-  Lock,
-  ShieldCheck,
+  Search, UserPlus, Loader2, Lock, ShieldCheck, Upload as UploadIcon, Eye, MoreHorizontal,
 } from "lucide-react";
 import type { ApiUserListItem } from "@/lib/types";
-import { formatBytes, formatDate, formatRelative } from "../../shared/use-media-list";
+import { formatBytes, formatRelative } from "../../shared/use-media-list";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { DEFAULT_USER_PERMISSIONS, PERMISSIONS, serializePermissions } from "@/lib/permissions";
+import { DEFAULT_USER_PERMISSIONS, PERMISSIONS, serializePermissions, ADMIN_TOGGLEABLE_PERMISSIONS } from "@/lib/permissions";
 
 export function AdminUsersView() {
   const setView = useUIStore((s) => s.setView);
@@ -46,6 +30,7 @@ export function AdminUsersView() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showCreate, setShowCreate] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -64,39 +49,51 @@ export function AdminUsersView() {
     refresh();
   }, [search, statusFilter]);
 
-  const toggleSelect = (id: string) => {
+  const toggleSelect = (id: string) =>
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-  };
 
   const bulkAction = async (action: string) => {
     if (selected.length === 0) return;
-    if (!confirm(`Apply "${action}" to ${selected.length} user(s)?`)) return;
-    for (const id of selected) {
-      try {
-        const u = users.find((x) => x.id === id);
-        if (!u) continue;
-        if (action === "suspend") {
-          await fetch(`/api/admin/users/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "suspended" }),
-          });
-        } else if (action === "activate") {
-          await fetch(`/api/admin/users/${id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "active" }),
-          });
-        } else if (action === "delete") {
-          await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
-        } else if (action === "force-logout") {
-          await fetch(`/api/admin/users/${id}/force-logout`, { method: "POST" });
+    const confirmMsgs: Record<string, string> = {
+      grant_private_access: `Grant Private Access to ${selected.length} user(s)? They will be able to upload private content and view private content shared with them.`,
+      revoke_private_access: `Revoke Private Access from ${selected.length} user(s)? They will lose access to private content.`,
+      grant_upload: `Grant upload permission to ${selected.length} user(s)?`,
+      revoke_upload: `Revoke upload permission from ${selected.length} user(s)?`,
+      activate: `Activate ${selected.length} user(s)?`,
+      suspend: `Suspend ${selected.length} user(s)?`,
+      delete: `Delete ${selected.length} user(s)? This is irreversible.`,
+      force_logout: `Force logout all sessions for ${selected.length} user(s)?`,
+    };
+    if (!confirm(confirmMsgs[action] ?? `Apply "${action}" to ${selected.length} user(s)?`)) return;
+    setBusy(true);
+    try {
+      if (action === "delete") {
+        for (const id of selected) {
+          try { await fetch(`/api/admin/users/${id}`, { method: "DELETE" }); } catch {}
         }
-      } catch {}
+      } else if (action === "force_logout") {
+        for (const id of selected) {
+          try { await fetch(`/api/admin/users/${id}/force-logout`, { method: "POST" }); } catch {}
+        }
+      } else {
+        const r = await fetch("/api/admin/users", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userIds: selected, action }),
+        });
+        if (!r.ok) {
+          const d = await r.json();
+          throw new Error(d.error ?? "Failed");
+        }
+      }
+      toast.success(`Bulk action completed`);
+      setSelected([]);
+      refresh();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed");
+    } finally {
+      setBusy(false);
     }
-    toast.success(`Bulk action done`);
-    setSelected([]);
-    refresh();
   };
 
   return (
@@ -134,131 +131,104 @@ export function AdminUsersView() {
         </Select>
       </div>
 
-      {/* Bulk actions */}
+      {/* Bulk actions toolbar */}
       {selected.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30">
+        <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
           <span className="text-sm font-medium">{selected.length} selected</span>
           <div className="flex-1" />
-          <Button size="sm" variant="outline" onClick={() => bulkAction("activate")}><CheckCircle2 className="w-3.5 h-3.5 mr-1" />Activate</Button>
-          <Button size="sm" variant="outline" onClick={() => bulkAction("suspend")}><PauseCircle className="w-3.5 h-3.5 mr-1" />Suspend</Button>
-          <Button size="sm" variant="outline" onClick={() => bulkAction("force-logout")}><Lock className="w-3.5 h-3.5 mr-1" />Force logout</Button>
-          <Button size="sm" variant="destructive" onClick={() => bulkAction("delete")}><Trash2 className="w-3.5 h-3.5 mr-1" />Delete</Button>
+          <Button size="sm" variant="outline" onClick={() => bulkAction("grant_private_access")} disabled={busy}>
+            <Lock className="w-3.5 h-3.5 mr-1.5" /> Grant Private
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => bulkAction("revoke_private_access")} disabled={busy}>
+            <Lock className="w-3.5 h-3.5 mr-1.5" /> Revoke Private
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => bulkAction("grant_upload")} disabled={busy}>
+            <UploadIcon className="w-3.5 h-3.5 mr-1.5" /> Allow Upload
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => bulkAction("revoke_upload")} disabled={busy}>
+            <UploadIcon className="w-3.5 h-3.5 mr-1.5" /> Block Upload
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => bulkAction("activate")} disabled={busy}>Activate</Button>
+          <Button size="sm" variant="outline" onClick={() => bulkAction("suspend")} disabled={busy}>Suspend</Button>
+          <Button size="sm" variant="outline" onClick={() => bulkAction("force_logout")} disabled={busy}>Force logout</Button>
+          <Button size="sm" variant="destructive" onClick={() => bulkAction("delete")} disabled={busy}>
+            Delete
+          </Button>
         </div>
       )}
 
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />
           ))}
         </div>
       ) : users.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">No users found</div>
       ) : (
-        <Card className="overflow-hidden">
-          {/* Desktop table */}
-          <div className="hidden md:block">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 border-b">
-                <tr>
-                  <th className="p-2 text-left w-10">
-                    <input
-                      type="checkbox"
-                      checked={selected.length === users.length && users.length > 0}
-                      onChange={(e) => setSelected(e.target.checked ? users.map((u) => u.id) : [])}
-                    />
-                  </th>
-                  <th className="p-2 text-left">User</th>
-                  <th className="p-2 text-left">Status</th>
-                  <th className="p-2 text-left">Storage</th>
-                  <th className="p-2 text-left">Media</th>
-                  <th className="p-2 text-left">Last active</th>
-                  <th className="p-2 text-left">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr
-                    key={u.id}
-                    className="border-b hover:bg-accent/40 cursor-pointer"
-                    onClick={() => setView("user-detail", { userId: u.id })}
-                  >
-                    <td className="p-2" onClick={(e) => e.stopPropagation()}>
-                      <input type="checkbox" checked={selected.includes(u.id)} onChange={() => toggleSelect(u.id)} />
-                    </td>
-                    <td className="p-2">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="w-8 h-8">
-                          <AvatarFallback className="bg-brand-gradient text-white text-xs">
-                            {u.displayName?.[0]?.toUpperCase() ?? u.username[0]?.toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <div className="font-medium truncate flex items-center gap-1">
-                            {u.displayName ?? u.username}
-                            {u.role === "admin" && <ShieldCheck className="w-3 h-3 text-emerald-500" />}
-                          </div>
-                          <div className="text-xs text-muted-foreground truncate">{u.email}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="p-2">
-                      <StatusBadge status={u.status} />
-                    </td>
-                    <td className="p-2">
-                      <div className="text-xs">{formatBytes(u.usedStorage)} / {formatBytes(u.storageQuota)}</div>
-                      <div className="w-24 h-1 bg-muted rounded overflow-hidden mt-1">
-                        <div className="h-full brand-progress" style={{ width: `${Math.min(100, (u.usedStorage / u.storageQuota) * 100)}%` }} />
-                      </div>
-                    </td>
-                    <td className="p-2 text-xs">{u.mediaCount}</td>
-                    <td className="p-2 text-xs text-muted-foreground">{u.lastActiveAt ? formatRelative(u.lastActiveAt) : "—"}</td>
-                    <td className="p-2 text-xs text-muted-foreground">{formatDate(u.createdAt)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile cards */}
-          <div className="md:hidden divide-y">
-            {users.map((u) => (
-              <div
-                key={u.id}
-                className="p-3 flex items-center gap-3 active:bg-accent/40 cursor-pointer"
-                onClick={() => setView("user-detail", { userId: u.id })}
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.includes(u.id)}
-                  onChange={() => toggleSelect(u.id)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-                <Avatar className="w-10 h-10">
-                  <AvatarFallback className="bg-brand-gradient text-white text-xs">
-                    {u.displayName?.[0]?.toUpperCase() ?? u.username[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium truncate flex items-center gap-1">
-                    {u.displayName ?? u.username}
-                    {u.role === "admin" && <ShieldCheck className="w-3 h-3 text-emerald-500" />}
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate">{u.email}</div>
-                  <div className="flex items-center gap-1 mt-1">
-                    <StatusBadge status={u.status} />
-                    <Badge variant="outline" className="text-[10px]">{formatBytes(u.usedStorage)}</Badge>
-                    <Badge variant="outline" className="text-[10px]">{u.mediaCount} files</Badge>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {users.map((u) => (
+            <UserCard key={u.id} user={u} selected={selected.includes(u.id)} onToggle={() => toggleSelect(u.id)} onOpen={() => setView("user-detail", { userId: u.id })} />
+          ))}
+        </div>
       )}
 
       <CreateUserDialog open={showCreate} onOpenChange={setShowCreate} onCreated={refresh} />
     </div>
+  );
+}
+
+function UserCard({ user, selected, onToggle, onOpen }: { user: ApiUserListItem; selected: boolean; onToggle: () => void; onOpen: () => void }) {
+  return (
+    <Card className={`p-3 cursor-pointer hover:shadow-md transition-all ${selected ? "ring-2 ring-emerald-500" : ""}`} onClick={onOpen}>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+          className={`mt-1 w-5 h-5 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${
+            selected ? "bg-emerald-500 border-emerald-500 text-white" : "border-muted-foreground/40"
+          }`}
+        >
+          {selected && (
+            <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+            </svg>
+          )}
+        </button>
+        <Avatar className="w-11 h-11 shrink-0">
+          <AvatarFallback className="bg-brand-gradient text-white text-sm">
+            {user.displayName?.[0]?.toUpperCase() ?? user.username[0]?.toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <div className="font-medium text-sm truncate">{user.displayName ?? user.username}</div>
+            {user.role === "admin" && <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+          </div>
+          <div className="text-[11px] text-muted-foreground truncate">{user.email}</div>
+          <div className="flex flex-wrap items-center gap-1 mt-1.5">
+            <StatusBadge status={user.status} />
+            {user.hasPrivateAccess && (
+              <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400 border-amber-500/30">
+                <Lock className="w-2.5 h-2.5 mr-0.5" />Private
+              </Badge>
+            )}
+            {user.canUpload && (
+              <Badge variant="outline" className="text-[10px] text-emerald-600 dark:text-emerald-400 border-emerald-500/30">
+                <UploadIcon className="w-2.5 h-2.5 mr-0.5" />Upload
+              </Badge>
+            )}
+          </div>
+        </div>
+        <MoreHorizontal className="w-4 h-4 text-muted-foreground shrink-0" />
+      </div>
+      <div className="mt-2.5 pt-2.5 border-t flex items-center justify-between text-[11px] text-muted-foreground">
+        <span>{formatBytes(user.usedStorage)} / {formatBytes(user.storageQuota)}</span>
+        <span>{user.lastActiveAt ? formatRelative(user.lastActiveAt) : "—"}</span>
+      </div>
+    </Card>
   );
 }
 
@@ -280,24 +250,21 @@ function CreateUserDialog({ open, onOpenChange, onCreated }: { open: boolean; on
   const [role, setRole] = useState<"user" | "admin">("user");
   const [storageQuota, setStorageQuota] = useState(20 * 1024 * 1024 * 1024);
   const [uploadMaxBytes, setUploadMaxBytes] = useState(5 * 1024 * 1024 * 1024);
+  const [grantPrivateAccess, setGrantPrivateAccess] = useState(false);
   const [perms, setPerms] = useState<string[]>(DEFAULT_USER_PERMISSIONS);
   const [saving, setSaving] = useState(false);
 
   const submit = async () => {
     setSaving(true);
     try {
+      const finalPerms = grantPrivateAccess ? [...perms, PERMISSIONS.PRIVATE_ACCESS, PERMISSIONS.VIEW_PRIVATE] : perms;
       const r = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          username,
-          email,
-          password,
-          displayName,
-          role,
-          storageQuota,
-          uploadMaxBytes,
-          permissions: role === "admin" ? [...DEFAULT_USER_PERMISSIONS, "admin"] : perms,
+          username, email, password, displayName, role,
+          storageQuota, uploadMaxBytes,
+          permissions: role === "admin" ? [...DEFAULT_USER_PERMISSIONS, "admin"] : finalPerms,
         }),
       });
       const d = await r.json();
@@ -356,21 +323,33 @@ function CreateUserDialog({ open, onOpenChange, onCreated }: { open: boolean; on
             </div>
           </div>
           {role === "user" && (
-            <div className="space-y-1">
-              <Label>Permissions</Label>
-              <div className="grid grid-cols-2 gap-1 max-h-44 overflow-y-auto p-2 rounded-lg border">
-                {DEFAULT_USER_PERMISSIONS.map((p) => (
-                  <label key={p} className="flex items-center gap-1.5 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={perms.includes(p)}
-                      onChange={(e) => setPerms((s) => e.target.checked ? [...s, p] : s.filter((x) => x !== p))}
-                    />
-                    {p.replace(/_/g, " ")}
-                  </label>
-                ))}
+            <>
+              <div className="flex items-center justify-between p-2.5 rounded-lg border bg-amber-500/5">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-amber-500" />
+                  <div>
+                    <div className="text-sm font-medium">Grant Private Access</div>
+                    <div className="text-[11px] text-muted-foreground">Allow this user to upload private content and view private content shared with them</div>
+                  </div>
+                </div>
+                <Switch checked={grantPrivateAccess} onCheckedChange={setGrantPrivateAccess} />
               </div>
-            </div>
+              <details className="text-xs">
+                <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Advanced permissions</summary>
+                <div className="grid grid-cols-2 gap-1 max-h-44 overflow-y-auto p-2 rounded-lg border mt-2">
+                  {ADMIN_TOGGLEABLE_PERMISSIONS.map((p) => (
+                    <label key={p.key} className="flex items-center gap-1.5 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={perms.includes(p.key)}
+                        onChange={(e) => setPerms((s) => e.target.checked ? [...s, p.key] : s.filter((x) => x !== p.key))}
+                      />
+                      {p.label}
+                    </label>
+                  ))}
+                </div>
+              </details>
+            </>
           )}
         </div>
         <DialogFooter>

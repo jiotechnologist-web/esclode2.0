@@ -13,13 +13,7 @@ import { AdminUploadsView } from "./views/uploads-view";
 import { UploadManagerPanel } from "@/components/escloud/upload/upload-manager-panel";
 
 import {
-  LayoutDashboard,
-  Users,
-  Folder,
-  ScrollText,
-  Settings,
-  UserCog,
-  Upload,
+  LayoutDashboard, Users, Folder, ScrollText, Settings, UserCog, Upload,
 } from "lucide-react";
 
 const navItems: { key: AdminView; label: string; icon: any }[] = [

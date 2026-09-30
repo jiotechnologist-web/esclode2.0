@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestContext, jsonError, jsonOk } from "@/lib/api";
-import { DEFAULT_USER_PERMISSIONS, serializePermissions } from "@/lib/permissions";
+import { DEFAULT_USER_PERMISSIONS, PERMISSIONS, serializePermissions } from "@/lib/permissions";
 import { hashPassword, logAdminActivity, getClientIp } from "@/lib/auth";
 
 // GET /api/admin/users — list all users
@@ -31,7 +31,6 @@ export async function GET(req: NextRequest) {
     take: 200,
   });
 
-  // Compute used storage + media count + last active session
   const userIds = users.map((u) => u.id);
   const storageAggs = await db.media.groupBy({
     by: ["ownerId"],
@@ -56,6 +55,7 @@ export async function GET(req: NextRequest) {
   return jsonOk({
     users: users.map((u) => {
       const agg = storageAggs.find((a) => a.ownerId === u.id);
+      const perms = u.permissions ? JSON.parse(u.permissions || "[]") : [];
       return {
         id: u.id,
         username: u.username,
@@ -66,7 +66,14 @@ export async function GET(req: NextRequest) {
         phone: u.phone,
         avatarPath: u.avatarPath,
         avatarUrl: u.avatarPath ? `/api/profile/avatar?path=${encodeURIComponent(u.avatarPath)}` : null,
-        permissions: u.permissions ? JSON.parse(u.permissions || "[]") : [],
+        permissions: perms,
+        hasPrivateAccess: perms.includes(PERMISSIONS.PRIVATE_ACCESS),
+        canUpload: u.uploadEnabled && (
+          perms.includes(PERMISSIONS.UPLOAD_VIDEOS) ||
+          perms.includes(PERMISSIONS.UPLOAD_PHOTOS) ||
+          perms.includes(PERMISSIONS.UPLOAD_DOCUMENTS) ||
+          perms.includes(PERMISSIONS.UPLOAD_CONTACTS)
+        ),
         storageQuota: Number(u.storageQuota),
         usedStorage: Number(agg?._sum.size ?? 0),
         uploadMaxBytes: Number(u.uploadMaxBytes),
@@ -139,5 +146,74 @@ export async function POST(req: NextRequest) {
     });
   } catch (e: any) {
     return jsonError(e?.message ?? "Failed to create user", 500);
+  }
+}
+
+// PATCH /api/admin/users — bulk update (e.g., bulk grant/remove private access)
+export async function PATCH(req: NextRequest) {
+  const ctx = await getRequestContext(req);
+  if (!ctx.user || ctx.user.role !== "admin") return jsonError("Forbidden", 403);
+
+  try {
+    const body = await req.json();
+    const userIds: string[] = Array.isArray(body.userIds) ? body.userIds.filter((x: any) => typeof x === "string") : [];
+    if (userIds.length === 0) return jsonError("No users selected", 400);
+
+    const action = String(body.action ?? "");
+    let updated = 0;
+
+    for (const uid of userIds) {
+      const user = await db.user.findUnique({ where: { id: uid } });
+      if (!user || user.role === "admin") continue; // never modify admins in bulk
+
+      const perms = JSON.parse(user.permissions || "[]") as string[];
+
+      if (action === "grant_private_access") {
+        if (!perms.includes(PERMISSIONS.PRIVATE_ACCESS)) {
+          perms.push(PERMISSIONS.PRIVATE_ACCESS);
+          if (!perms.includes(PERMISSIONS.VIEW_PRIVATE)) perms.push(PERMISSIONS.VIEW_PRIVATE);
+        }
+      } else if (action === "revoke_private_access") {
+        const idx = perms.indexOf(PERMISSIONS.PRIVATE_ACCESS);
+        if (idx >= 0) perms.splice(idx, 1);
+      } else if (action === "grant_upload") {
+        if (!perms.includes(PERMISSIONS.UPLOAD_VIDEOS)) perms.push(PERMISSIONS.UPLOAD_VIDEOS);
+        if (!perms.includes(PERMISSIONS.UPLOAD_PHOTOS)) perms.push(PERMISSIONS.UPLOAD_PHOTOS);
+        if (!perms.includes(PERMISSIONS.UPLOAD_DOCUMENTS)) perms.push(PERMISSIONS.UPLOAD_DOCUMENTS);
+        if (!perms.includes(PERMISSIONS.UPLOAD_CONTACTS)) perms.push(PERMISSIONS.UPLOAD_CONTACTS);
+      } else if (action === "revoke_upload") {
+        for (const p of [PERMISSIONS.UPLOAD_VIDEOS, PERMISSIONS.UPLOAD_PHOTOS, PERMISSIONS.UPLOAD_DOCUMENTS, PERMISSIONS.UPLOAD_CONTACTS]) {
+          const i = perms.indexOf(p);
+          if (i >= 0) perms.splice(i, 1);
+        }
+      } else if (action === "activate") {
+        await db.user.update({ where: { id: uid }, data: { status: "active" } });
+        updated++;
+        continue;
+      } else if (action === "suspend") {
+        await db.user.update({ where: { id: uid }, data: { status: "suspended" } });
+        updated++;
+        continue;
+      } else {
+        continue;
+      }
+
+      await db.user.update({
+        where: { id: uid },
+        data: { permissions: serializePermissions(perms) },
+      });
+      updated++;
+    }
+
+    await logAdminActivity({
+      adminId: ctx.user.id,
+      action: `user.bulk.${action}`,
+      ip: getClientIp(req),
+      metadata: { userIds, count: updated },
+    });
+
+    return jsonOk({ ok: true, updated });
+  } catch (e: any) {
+    return jsonError(e?.message ?? "Failed to update users", 500);
   }
 }

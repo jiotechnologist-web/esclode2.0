@@ -40,11 +40,12 @@ interface Props {
 
 export function MediaCard({ item, view = "grid", onChange }: Props) {
   const setView = useUIStore((s) => s.setView);
+  const setOverlay = useUIStore((s) => s.setOverlay);
   const [busy, setBusy] = useState(false);
 
   const open = () => {
-    if (item.type === "video") setView("video-player", { mediaId: item.id });
-    else if (item.type === "photo") setView("photo-viewer", { mediaId: item.id });
+    if (item.type === "video") setOverlay("video-player", { mediaId: item.id });
+    else if (item.type === "photo") setOverlay("photo-viewer", { mediaId: item.id });
     else if (item.type === "contact") setView("contacts", { focus: item.id });
     else setView("documents", { focus: item.id });
   };

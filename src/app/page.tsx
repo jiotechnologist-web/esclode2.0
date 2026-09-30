@@ -6,6 +6,7 @@ import { LoginPage } from "@/components/escloud/login/login-page";
 import { UserApp } from "@/components/escloud/user/user-app";
 import { AdminApp } from "@/components/escloud/admin/admin-app";
 import { LoadingSplash } from "@/components/escloud/loading-splash";
+import { MediaViewerOverlay } from "@/components/escloud/shared/media-viewer-overlay";
 
 export default function Home() {
   const user = useAuthStore((s) => s.user);
@@ -13,6 +14,7 @@ export default function Home() {
   const loading = useAuthStore((s) => s.loading);
   const fetchSession = useAuthStore((s) => s.fetchSession);
   const view = useUIStore((s) => s.view);
+  const overlay = useUIStore((s) => s.overlay);
 
   useEffect(() => {
     fetchSession();
@@ -23,14 +25,18 @@ export default function Home() {
     if (loading) return;
     if (user) {
       if (user.role === "admin" && !isImpersonating) {
-        // Default admin view
-        useUIStore.getState().setView("dashboard", {});
+        if (view === "loading" || view === "user-login" || view === "admin-login" || view === "qr-login") {
+          useUIStore.getState().setView("dashboard", {});
+        }
       } else {
-        // Default user view
-        useUIStore.getState().setView("home", {});
+        if (view === "loading" || view === "user-login" || view === "admin-login" || view === "qr-login") {
+          useUIStore.getState().setView("home", {});
+        }
       }
     } else {
-      useUIStore.getState().setView("user-login", {});
+      if (view !== "user-login" && view !== "admin-login" && view !== "qr-login") {
+        useUIStore.getState().setView("user-login", {});
+      }
     }
   }, [user, isImpersonating, loading]);
 
@@ -38,7 +44,19 @@ export default function Home() {
 
   if (!user) return <LoginPage />;
 
-  if (user.role === "admin" && !isImpersonating) return <AdminApp />;
+  if (user.role === "admin" && !isImpersonating) {
+    return (
+      <>
+        <AdminApp />
+        {overlay && <MediaViewerOverlay />}
+      </>
+    );
+  }
 
-  return <UserApp />;
+  return (
+    <>
+      <UserApp />
+      {overlay && <MediaViewerOverlay />}
+    </>
+  );
 }

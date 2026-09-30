@@ -7,9 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Search, Loader2, Trash2, Download, Lock, Globe, Filter } from "lucide-react";
+import {
+  Search, Loader2, Trash2, Download, Lock, Globe, Filter, Eye, Users, ChevronRight,
+} from "lucide-react";
 import { useMediaList, formatBytes, formatRelative, deleteMedia } from "../../shared/use-media-list";
 import { MediaSkeleton, EmptyState } from "../../shared/media-card";
+import { useUIStore } from "@/stores/ui";
 import { toast } from "sonner";
 import type { ApiMediaItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -19,6 +22,7 @@ export function AdminMediaView() {
   const [search, setSearch] = useState("");
   const [visibility, setVisibility] = useState<string>("all");
   const [selected, setSelected] = useState<string[]>([]);
+  const setOverlay = useUIStore((s) => s.setOverlay);
 
   const { items, loading, refresh, hasMore, loadMore } = useMediaList({
     type: type && type !== "all" ? type : undefined,
@@ -32,7 +36,7 @@ export function AdminMediaView() {
 
   const bulkDelete = async () => {
     if (selected.length === 0) return;
-    if (!confirm(`Delete ${selected.length} media files? This is irreversible.`)) return;
+    if (!confirm(`Delete ${selected.length} media file(s)? This is irreversible.`)) return;
     let ok = 0, fail = 0;
     for (const id of selected) {
       try {
@@ -47,11 +51,22 @@ export function AdminMediaView() {
     refresh();
   };
 
+  const openMedia = (m: ApiMediaItem) => {
+    if (m.type === "video") setOverlay("video-player", { mediaId: m.id });
+    else if (m.type === "photo") setOverlay("photo-viewer", { mediaId: m.id });
+    else if (m.type === "document") {
+      // Open documents in new tab (PDF viewer) if possible
+      window.open(`/api/media/${m.id}/download`, "_blank");
+    } else {
+      toast.info("Use the download button to save this file");
+    }
+  };
+
   return (
     <div className="px-3 md:px-6 py-4 md:py-6 max-w-7xl mx-auto space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Media Management</h1>
-        <p className="text-sm text-muted-foreground">All media across all users</p>
+        <p className="text-sm text-muted-foreground">All media across all users · click any row to preview</p>
       </div>
 
       {/* Filters */}
@@ -60,7 +75,7 @@ export function AdminMediaView() {
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search media…" className="pl-9" />
         </div>
-        <Select value={type} onValueChange={(v) => setType(v === "all" ? "" : v)}>
+        <Select value={type} onValueChange={(v) => setType(v)}>
           <SelectTrigger className="sm:w-36">
             <SelectValue placeholder="All types" />
           </SelectTrigger>
@@ -72,7 +87,7 @@ export function AdminMediaView() {
             <SelectItem value="contact">Contacts</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={visibility} onValueChange={(v) => setVisibility(v === "all" ? "" : v)}>
+        <Select value={visibility} onValueChange={(v) => setVisibility(v)}>
           <SelectTrigger className="sm:w-36">
             <SelectValue placeholder="Visibility" />
           </SelectTrigger>
@@ -101,87 +116,100 @@ export function AdminMediaView() {
         <EmptyState icon={Filter} title="No media found" description="Try adjusting filters or upload new content." />
       ) : (
         <>
-          <Card className="overflow-hidden">
-            <div className="hidden md:block">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 border-b">
-                  <tr>
-                    <th className="p-2 text-left w-10">
-                      <input
-                        type="checkbox"
-                        checked={selected.length === items.length && items.length > 0}
-                        onChange={(e) => setSelected(e.target.checked ? items.map((i) => i.id) : [])}
-                      />
-                    </th>
-                    <th className="p-2 text-left">Name</th>
-                    <th className="p-2 text-left">Type</th>
-                    <th className="p-2 text-left">Visibility</th>
-                    <th className="p-2 text-left">Size</th>
-                    <th className="p-2 text-left">Created</th>
-                    <th className="p-2 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((m) => (
-                    <tr key={m.id} className="border-b hover:bg-accent/40">
-                      <td className="p-2" onClick={(e) => e.stopPropagation()}>
-                        <input type="checkbox" checked={selected.includes(m.id)} onChange={() => toggleSelect(m.id)} />
-                      </td>
-                      <td className="p-2">
-                        <div className="flex items-center gap-2">
-                          {m.thumbnailUrl ? (
-                            <img src={m.thumbnailUrl} alt="" className="w-10 h-10 rounded object-cover" />
-                          ) : (
-                            <div className="w-10 h-10 rounded bg-muted" />
-                          )}
-                          <div className="min-w-0">
-                            <div className="font-medium truncate">{m.name}</div>
-                            <div className="text-[11px] text-muted-foreground">{m.ownerName ?? "—"}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-2"><Badge variant="outline" className="text-[10px]">{m.type}</Badge></td>
-                      <td className="p-2">
-                        {m.visibility === "private" ? (
-                          <Badge variant="secondary" className="text-[10px]"><Lock className="w-2.5 h-2.5 mr-0.5" />Private</Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px]"><Globe className="w-2.5 h-2.5 mr-0.5" />Public</Badge>
-                        )}
-                      </td>
-                      <td className="p-2 text-xs">{formatBytes(m.size)}</td>
-                      <td className="p-2 text-xs text-muted-foreground">{formatRelative(m.createdAt)}</td>
-                      <td className="p-2 text-right">
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => window.open(`/api/media/${m.id}/download`, "_blank")}>
-                          <Download className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-rose-500" onClick={async () => { await deleteMedia(m.id); toast.success("Deleted"); refresh(); }}>
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {/* Mobile cards */}
-            <div className="md:hidden divide-y">
-              {items.map((m) => (
-                <div key={m.id} className="p-3 flex items-center gap-2">
-                  <input type="checkbox" checked={selected.includes(m.id)} onChange={() => toggleSelect(m.id)} />
-                  {m.thumbnailUrl && <img src={m.thumbnailUrl} alt="" className="w-12 h-12 rounded object-cover" />}
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{m.name}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {m.type} · {formatBytes(m.size)} · {formatRelative(m.createdAt)}
+          {/* Grid view (cards) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+            {items.map((m) => (
+              <Card
+                key={m.id}
+                className="group relative overflow-hidden hover:shadow-lg transition-shadow cursor-pointer p-0"
+                onClick={() => openMedia(m)}
+              >
+                <div className="relative aspect-video bg-muted overflow-hidden">
+                  {m.thumbnailUrl ? (
+                    <img
+                      src={m.thumbnailUrl}
+                      alt={m.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <span className="text-2xl uppercase text-muted-foreground font-bold">
+                        {m.docType ?? m.type.slice(0, 4)}
+                      </span>
+                    </div>
+                  )}
+                  {/* Status badges */}
+                  <div className="absolute top-1.5 left-1.5 flex flex-col gap-1">
+                    {m.visibility === "private" ? (
+                      <Badge className="text-[10px] bg-black/70 hover:bg-black/70 text-white">
+                        <Lock className="w-2.5 h-2.5 mr-0.5" /> PRIVATE
+                      </Badge>
+                    ) : (
+                      <Badge className="text-[10px] bg-black/70 hover:bg-black/70 text-white">
+                        <Globe className="w-2.5 h-2.5 mr-0.5" /> PUBLIC
+                      </Badge>
+                    )}
+                  </div>
+                  {m.type === "video" && m.duration && (
+                    <div className="absolute bottom-1.5 right-1.5 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
+                      {Math.floor(m.duration / 60)}:{String(Math.floor(m.duration % 60)).padStart(2, "0")}
+                    </div>
+                  )}
+                  {/* Quick action buttons */}
+                  <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      size="icon"
+                      variant="secondary"
+                      className="h-7 w-7 bg-black/70 hover:bg-black/90 text-white border-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        window.open(`/api/media/${m.id}/download`, "_blank");
+                      }}
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  {/* Click-to-preview overlay */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none">
+                    <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center">
+                      <Eye className="w-6 h-6 text-white" />
                     </div>
                   </div>
-                  <Button size="icon" variant="ghost" onClick={() => window.open(`/api/media/${m.id}/download`, "_blank")}>
-                    <Download className="w-3.5 h-3.5" />
-                  </Button>
                 </div>
-              ))}
-            </div>
-          </Card>
+                <div className="p-3">
+                  <div className="font-medium text-sm truncate">{m.name}</div>
+                  <div className="text-[11px] text-muted-foreground mt-1 truncate flex items-center gap-1">
+                    <Users className="w-2.5 h-2.5" />
+                    {m.ownerName ?? "—"}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {formatBytes(m.size)} · {formatRelative(m.createdAt)}
+                  </div>
+                </div>
+                {/* Select checkbox */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSelect(m.id);
+                  }}
+                  className={cn(
+                    "absolute top-1.5 left-1.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-all",
+                    selected.includes(m.id)
+                      ? "bg-emerald-500 border-emerald-500 text-white opacity-100"
+                      : "border-white/70 bg-black/40 opacity-0 group-hover:opacity-100"
+                  )}
+                  style={{ left: m.visibility === "private" ? "70px" : "8px" }}
+                >
+                  {selected.includes(m.id) && (
+                    <svg viewBox="0 0 24 24" className="w-3 h-3 fill-current">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                    </svg>
+                  )}
+                </button>
+              </Card>
+            ))}
+          </div>
           {hasMore && (
             <div className="flex justify-center">
               <Button variant="outline" onClick={loadMore}><Loader2 className="w-4 h-4 mr-2" /> Load more</Button>

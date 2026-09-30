@@ -1,10 +1,10 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestContext, jsonError, jsonOk, checkPermission } from "@/lib/api";
-import { categorizeFile, getAllowedStoragePath, getStorageRelativePath, PATHS } from "@/lib/storage";
+import { categorizeFile, getStorageRelativePath, PATHS } from "@/lib/storage";
 import { promises as fs } from "fs";
 import path from "path";
-import { logAdminActivity, getClientIp } from "@/lib/auth";
+import { PERMISSIONS } from "@/lib/permissions";
 
 const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB chunks - good for resume on flaky networks
 
@@ -21,14 +21,15 @@ export async function POST(req: NextRequest) {
     const assignUserIds: string[] = Array.isArray(body.assignUserIds) ? body.assignUserIds : [];
 
     if (!filename || !size) return jsonError("Missing filename/size", 400);
+    if (size <= 0) return jsonError("File is empty", 400);
 
     // Permission check
     const { type } = categorizeFile(filename, mimeType);
     const uploadPermMap: Record<string, string> = {
-      video: "upload_videos",
-      photo: "upload_photos",
-      document: "upload_documents",
-      contact: "upload_contacts",
+      video: PERMISSIONS.UPLOAD_VIDEOS,
+      photo: PERMISSIONS.UPLOAD_PHOTOS,
+      document: PERMISSIONS.UPLOAD_DOCUMENTS,
+      contact: PERMISSIONS.UPLOAD_CONTACTS,
     };
 
     let ownerId = ctx.user.id;
@@ -37,8 +38,15 @@ export async function POST(req: NextRequest) {
       if (ctx.user.role !== "admin") return jsonError("Not allowed", 403);
       ownerId = targetUserId;
     } else {
+      // Regular user uploading for themselves
       if (!ctx.user.uploadEnabled) return jsonError("Upload disabled for this account", 403);
-      if (!checkPermission(ctx.user, uploadPermMap[type])) return jsonError(`No ${type} upload permission`, 403);
+      if (!checkPermission(ctx.user, uploadPermMap[type])) {
+        return jsonError(`You don't have permission to upload ${type}s`, 403);
+      }
+      // If uploading private content, user must have PRIVATE_ACCESS permission
+      if (visibility === "private" && !checkPermission(ctx.user, PERMISSIONS.PRIVATE_ACCESS)) {
+        return jsonError("You don't have Private Access permission to upload private content", 403);
+      }
     }
 
     const targetUser = await db.user.findUnique({ where: { id: ownerId } });
@@ -47,7 +55,7 @@ export async function POST(req: NextRequest) {
 
     // Size validation
     if (size > Number(targetUser.uploadMaxBytes)) {
-      return jsonError(`File exceeds max upload size (${targetUser.uploadMaxBytes} bytes)`, 413);
+      return jsonError(`File exceeds max upload size (${formatBytes(Number(targetUser.uploadMaxBytes))})`, 413);
     }
 
     // Storage quota check
@@ -97,6 +105,15 @@ export async function POST(req: NextRequest) {
       mediaType: type,
     });
   } catch (e: any) {
+    console.error("Upload init failed:", e);
     return jsonError(e?.message ?? "Upload init failed", 500);
   }
+}
+
+function formatBytes(n: number): string {
+  if (!n) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let i = 0; let v = n;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return `${v.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
