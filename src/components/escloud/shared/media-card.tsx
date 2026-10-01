@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -140,68 +141,75 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
   }
 
   return (
-    <Card
-      className="group relative overflow-hidden hover:shadow-lg transition-shadow cursor-pointer p-0"
-      onClick={open}
+    <motion.div
+      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+      whileHover={{ y: -4 }}
+      className="h-full"
     >
-      <div className="relative aspect-video bg-muted overflow-hidden">
-        {item.thumbnailUrl ? (
-          <img
-            src={item.thumbnailUrl}
-            alt={item.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            loading="lazy"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Icon className="w-12 h-12 text-muted-foreground" />
-          </div>
-        )}
-        {item.type === "video" && (
-          <>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-            <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
-              {formatDuration(item.duration)}
+      <Card
+        className="group relative overflow-hidden hover:shadow-premium-lg transition-shadow cursor-pointer p-0 shadow-premium card-hover h-full"
+        onClick={open}
+      >
+        <div className="relative aspect-video bg-muted overflow-hidden">
+          {item.thumbnailUrl ? (
+            <img
+              src={item.thumbnailUrl}
+              alt={item.name}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-muted to-muted/60">
+              <Icon className="w-12 h-12 text-muted-foreground" />
             </div>
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/20 backdrop-blur flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-              <Play className="w-5 h-5 text-white fill-white" />
-            </div>
-            {item.watchProgress && item.duration && (
-              <div className="absolute bottom-0 inset-x-0 h-1 bg-black/40">
-                <div className="h-full bg-brand-gradient" style={{ width: `${Math.min(100, (item.watchProgress / item.duration) * 100)}%` }} />
+          )}
+          {item.type === "video" && (
+            <>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+              <div className="absolute bottom-2 right-2 bg-black/70 backdrop-blur text-white text-[10px] px-1.5 py-0.5 rounded-md font-mono">
+                {formatDuration(item.duration)}
               </div>
-            )}
-          </>
-        )}
-        {item.visibility === "private" && (
-          <Badge className="absolute top-2 left-2 text-[10px] bg-black/60 hover:bg-black/60 text-white">
-            <Lock className="w-2.5 h-2.5 mr-1" />PRIVATE
-          </Badge>
-        )}
-        {item.status === "pending" && (
-          <Badge className="absolute top-2 right-2 text-[10px] bg-amber-500/90 hover:bg-amber-500/90 text-white">
-            <Clock className="w-2.5 h-2.5 mr-0.5" />PENDING
-          </Badge>
-        )}
-        {item.status === "processing" && (
-          <Badge className="absolute top-2 right-2 text-[10px] bg-blue-500/90 hover:bg-blue-500/90 text-white">
-            <RotateCw className="w-2.5 h-2.5 mr-0.5 animate-spin" />PROCESSING
-          </Badge>
-        )}
-      </div>
-      <div className="p-3">
-        <div className="font-medium text-sm truncate">{item.name}</div>
-        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-1">
-          <span>{formatBytes(item.size)}</span>
-          <span>·</span>
-          <span>{formatRelative(item.createdAt)}</span>
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <Play className="w-5 h-5 text-white fill-white" />
+              </div>
+              {item.watchProgress && item.duration && (
+                <div className="absolute bottom-0 inset-x-0 h-1 bg-black/40">
+                  <div className="h-full brand-progress" style={{ width: `${Math.min(100, (item.watchProgress / item.duration) * 100)}%` }} />
+                </div>
+              )}
+            </>
+          )}
+          {item.visibility === "private" && (
+            <Badge className="absolute top-2 left-2 text-[10px] bg-black/70 backdrop-blur hover:bg-black/70 text-white border-0">
+              <Lock className="w-2.5 h-2.5 mr-1" />PRIVATE
+            </Badge>
+          )}
+          {item.status === "pending" && (
+            <Badge className="absolute top-2 right-2 text-[10px] bg-amber-500/90 hover:bg-amber-500/90 text-white">
+              <Clock className="w-2.5 h-2.5 mr-0.5" />PENDING
+            </Badge>
+          )}
+          {item.status === "processing" && (
+            <Badge className="absolute top-2 right-2 text-[10px] bg-blue-500/90 hover:bg-blue-500/90 text-white">
+              <RotateCw className="w-2.5 h-2.5 mr-0.5 animate-spin" />PROCESSING
+            </Badge>
+          )}
         </div>
-      </div>
-      {/* Hover actions */}
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-        <Button
-          size="icon"
-          variant="secondary"
+        <div className="p-3">
+          <div className="font-medium text-sm truncate">{item.name}</div>
+          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-1">
+            <span>{formatBytes(item.size)}</span>
+            <span>·</span>
+            <span>{formatRelative(item.createdAt)}</span>
+          </div>
+        </div>
+        {/* Hover actions */}
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center gap-1">
+          <Button
+            size="icon"
+            variant="secondary"
           className="h-7 w-7 bg-black/60 hover:bg-black/80 text-white border-0"
           onClick={handleFav}
         >
@@ -227,7 +235,8 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-    </Card>
+      </Card>
+    </motion.div>
   );
 }
 
