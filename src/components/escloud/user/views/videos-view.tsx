@@ -1,15 +1,17 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useMediaList, formatBytes } from "../../shared/use-media-list";
+import { useMediaList } from "../../shared/use-media-list";
 import { MediaGrid, MediaSkeleton, EmptyState, ViewToggle } from "../../shared/media-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Upload, Video as VideoIcon, Loader2 } from "lucide-react";
+import { Search, Video as VideoIcon, Loader2 } from "lucide-react";
 import { useUploadStore } from "@/stores/upload";
 import { useAuthStore } from "@/stores/auth";
 import { toast } from "sonner";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { UploadButton } from "../../shared/upload-button";
+import { motion } from "framer-motion";
 
 export function VideosView() {
   const user = useAuthStore((s) => s.user)!;
@@ -17,7 +19,6 @@ export function VideosView() {
   const addFiles = useUploadStore((s) => s.addFiles);
   const canUpload = user.uploadEnabled && hasPermission(user.permissions, PERMISSIONS.UPLOAD_VIDEOS);
 
-  // Refresh session on mount so upload permission is current
   useEffect(() => { refreshSession(); }, [refreshSession]);
 
   const [view, setView] = useState<"grid" | "list">("grid");
@@ -33,49 +34,55 @@ export function VideosView() {
 
   return (
     <div className="px-3 md:px-6 py-4 md:py-6 max-w-7xl mx-auto space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2"><VideoIcon className="w-5 h-5 text-primary" /> Videos</h1>
-          <p className="text-xs text-muted-foreground">{items.length} videos in your library</p>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col md:flex-row md:items-center gap-3 justify-between"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center shadow-md">
+            <VideoIcon className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Videos</h1>
+            <p className="text-xs text-muted-foreground">{items.length} videos in your library</p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle view={view} onChange={setView} />
           {canUpload && (
-            <label className="cursor-pointer">
-              <input
-                type="file"
-                multiple
-                accept="video/*"
-                className="hidden"
-                onChange={async (e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  if (files.length > 0) {
-                    await addFiles(files, { visibility: "public" });
-                    toast.success(`Uploading ${files.length} file(s)`);
-                  }
-                }}
-              />
-              <Button size="sm" className="bg-brand-gradient text-white hover:opacity-95">
-                <Upload className="w-4 h-4 mr-1.5" /> Upload
-              </Button>
-            </label>
+            <UploadButton
+              label="Upload"
+              size="sm"
+              accept="video/*"
+              className="bg-brand-gradient text-white hover:opacity-95 shadow-brand btn-press"
+              onFiles={async (files) => {
+                await addFiles(files, { visibility: "public" });
+                toast.success(`Uploading ${files.length} file(s)`);
+              }}
+            />
           )}
         </div>
-      </div>
+      </motion.div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-2">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="flex flex-col sm:flex-row gap-2"
+      >
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search videos…"
-            className="pl-9"
+            className="pl-9 h-10 border-border/60"
           />
         </div>
         <Select value={sort} onValueChange={setSort}>
-          <SelectTrigger className="sm:w-44">
+          <SelectTrigger className="sm:w-44 h-10 border-border/60">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -86,7 +93,7 @@ export function VideosView() {
             <SelectItem value="duration:desc">Longest</SelectItem>
           </SelectContent>
         </Select>
-      </div>
+      </motion.div>
 
       {loading ? (
         <MediaSkeleton view={view} />
@@ -101,7 +108,7 @@ export function VideosView() {
           <MediaGrid items={items} view={view} onChange={refresh} />
           {hasMore && (
             <div className="flex justify-center mt-4">
-              <Button onClick={loadMore} variant="outline">
+              <Button onClick={loadMore} variant="outline" className="btn-press">
                 <Loader2 className="w-4 h-4 mr-2" /> Load more
               </Button>
             </div>

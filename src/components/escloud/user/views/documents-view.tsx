@@ -7,16 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
-  Search,
-  Upload,
-  FileText,
-  FileArchive,
-  FileSpreadsheet,
-  File as FileIcon,
-  Download,
-  Loader2,
-  Smartphone,
-  Presentation,
+  Search, FileText, FileArchive, FileSpreadsheet, File as FileIcon, Download, Loader2, Smartphone, Presentation,
 } from "lucide-react";
 import { useUploadStore } from "@/stores/upload";
 import { useAuthStore } from "@/stores/auth";
@@ -24,6 +15,8 @@ import { toast } from "sonner";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { ApiMediaItem } from "@/lib/types";
+import { UploadButton } from "../../shared/upload-button";
+import { motion } from "framer-motion";
 
 const DOC_FILTERS: { key: string; label: string; icon: any }[] = [
   { key: "all", label: "All", icon: FileText },
@@ -71,7 +64,6 @@ export function DocumentsView() {
   const addFiles = useUploadStore((s) => s.addFiles);
   const canUpload = user.uploadEnabled && hasPermission(user.permissions, PERMISSIONS.UPLOAD_DOCUMENTS);
 
-  // Refresh session on mount so upload permission is current
   useEffect(() => { refreshSession(); }, [refreshSession]);
 
   const [filter, setFilter] = useState("all");
@@ -88,34 +80,41 @@ export function DocumentsView() {
 
   return (
     <div className="px-3 md:px-6 py-4 md:py-6 max-w-7xl mx-auto space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center gap-3 justify-between">
-        <div>
-          <h1 className="text-xl font-bold flex items-center gap-2"><FileText className="w-5 h-5 text-primary" /> Documents</h1>
-          <p className="text-xs text-muted-foreground">{items.length} documents</p>
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="flex flex-col md:flex-row md:items-center gap-3 justify-between"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-blue-500 flex items-center justify-center shadow-md">
+            <FileText className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Documents</h1>
+            <p className="text-xs text-muted-foreground">{items.length} documents</p>
+          </div>
         </div>
         {canUpload && (
-          <label className="cursor-pointer">
-            <input
-              type="file"
-              multiple
-              className="hidden"
-              onChange={async (e) => {
-                const files = Array.from(e.target.files ?? []);
-                if (files.length > 0) {
-                  await addFiles(files, { visibility: "public" });
-                  toast.success(`Uploading ${files.length} file(s)`);
-                }
-              }}
-            />
-            <Button size="sm" className="bg-brand-gradient text-white hover:opacity-95">
-              <Upload className="w-4 h-4 mr-1.5" /> Upload
-            </Button>
-          </label>
+          <UploadButton
+            label="Upload"
+            size="sm"
+            className="bg-brand-gradient text-white hover:opacity-95 shadow-brand btn-press"
+            onFiles={async (files) => {
+              await addFiles(files, { visibility: "public" });
+              toast.success(`Uploading ${files.length} file(s)`);
+            }}
+          />
         )}
-      </div>
+      </motion.div>
 
-      {/* Top-level document filters */}
-      <div className="flex flex-wrap gap-1.5">
+      {/* Type filters */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+        className="flex flex-wrap gap-1.5"
+      >
         {DOC_FILTERS.map((f) => {
           const isActive = filter === f.key;
           return (
@@ -123,10 +122,10 @@ export function DocumentsView() {
               key={f.key}
               onClick={() => setFilter(f.key)}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors border",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
                 isActive
-                  ? "bg-primary text-primary-foreground border-primary"
-                  : "bg-background border-border hover:bg-accent"
+                  ? "bg-brand-gradient text-white shadow-brand"
+                  : "bg-background border border-border hover:bg-accent"
               )}
             >
               <f.icon className="w-3.5 h-3.5" />
@@ -134,50 +133,40 @@ export function DocumentsView() {
             </button>
           );
         })}
-      </div>
+      </motion.div>
 
-      <div className="flex flex-col sm:flex-row gap-2">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.15 }}
+        className="flex flex-col sm:flex-row gap-2"
+      >
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search documents…"
-            className="pl-9"
-          />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search documents…" className="pl-9 h-10 border-border/60" />
         </div>
-        <select
-          value={sort}
-          onChange={(e) => setSort(e.target.value)}
-          className="rounded-md border border-input bg-background px-3 py-2 text-sm w-full sm:w-44"
-        >
+        <select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-lg border border-input bg-background px-3 py-2 text-sm h-10 cursor-pointer">
           <option value="createdAt:desc">Newest first</option>
           <option value="createdAt:asc">Oldest first</option>
           <option value="name:asc">Name A-Z</option>
           <option value="size:desc">Largest first</option>
         </select>
-      </div>
+      </motion.div>
 
       {loading ? (
         <MediaSkeleton count={8} />
       ) : items.length === 0 ? (
-        <EmptyState
-          icon={FileText}
-          title="No documents"
-          description={filter !== "all" ? `No ${filter.toUpperCase()} files found.` : "Upload documents to organize them here."}
-        />
+        <EmptyState icon={FileText} title="No documents" description={filter !== "all" ? `No ${filter.toUpperCase()} files found.` : "Upload documents to organize them here."} />
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {items.map((doc) => (
-              <DocumentCard key={doc.id} doc={doc} onChange={refresh} />
+            {items.map((doc, i) => (
+              <DocumentCard key={doc.id} doc={doc} index={i} onChange={refresh} />
             ))}
           </div>
           {hasMore && (
             <div className="flex justify-center mt-4">
-              <Button onClick={loadMore} variant="outline">
-                <Loader2 className="w-4 h-4 mr-2" /> Load more
-              </Button>
+              <Button onClick={loadMore} variant="outline" className="btn-press"><Loader2 className="w-4 h-4 mr-2" /> Load more</Button>
             </div>
           )}
         </>
@@ -186,29 +175,36 @@ export function DocumentsView() {
   );
 }
 
-function DocumentCard({ doc, onChange }: { doc: ApiMediaItem; onChange?: () => void }) {
+function DocumentCard({ doc, index, onChange }: { doc: ApiMediaItem; index: number; onChange?: () => void }) {
   const Icon = iconFor(doc.docType);
   const color = colorFor(doc.docType);
   const handleDownload = () => window.open(`/api/media/${doc.id}/download`, "_blank");
 
   return (
-    <Card className="p-3 flex items-center gap-3 hover:shadow-md transition-shadow group">
-      <div className={cn("w-12 h-12 rounded-lg bg-gradient-to-br flex items-center justify-center shrink-0", color)}>
-        <Icon className="w-6 h-6 text-white" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm truncate">{doc.name}</div>
-        <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-          <Badge variant="outline" className="text-[9px] px-1 py-0 uppercase">{doc.docType ?? "FILE"}</Badge>
-          <span>·</span>
-          <span>{formatBytes(doc.size)}</span>
-          <span>·</span>
-          <span>{formatRelative(doc.createdAt)}</span>
+    <motion.div
+      initial={{ opacity: 0, y: 12, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      transition={{ delay: index * 0.04, duration: 0.3 }}
+      whileHover={{ y: -3 }}
+    >
+      <Card className="p-3 flex items-center gap-3 hover:shadow-premium-lg transition-shadow shadow-premium card-hover">
+        <div className={cn("w-12 h-12 rounded-xl bg-gradient-to-br flex items-center justify-center shrink-0 shadow-md", color)}>
+          <Icon className="w-6 h-6 text-white" />
         </div>
-      </div>
-      <Button size="icon" variant="ghost" onClick={handleDownload} className="h-8 w-8 shrink-0">
-        <Download className="w-4 h-4" />
-      </Button>
-    </Card>
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm truncate">{doc.name}</div>
+          <div className="text-[11px] text-muted-foreground flex items-center gap-1.5 mt-0.5">
+            <Badge variant="outline" className="text-[9px] px-1 py-0 uppercase">{doc.docType ?? "FILE"}</Badge>
+            <span>·</span>
+            <span>{formatBytes(doc.size)}</span>
+            <span>·</span>
+            <span>{formatRelative(doc.createdAt)}</span>
+          </div>
+        </div>
+        <Button size="icon" variant="ghost" onClick={handleDownload} className="h-8 w-8 shrink-0 btn-press">
+          <Download className="w-4 h-4" />
+        </Button>
+      </Card>
+    </motion.div>
   );
 }

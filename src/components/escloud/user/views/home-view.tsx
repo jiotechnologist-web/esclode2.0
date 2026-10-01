@@ -16,6 +16,7 @@ import { useUploadStore } from "@/stores/upload";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
+import { UploadButton } from "../../shared/upload-button";
 
 export function HomeView() {
   const user = useAuthStore((s) => s.user)!;
@@ -84,23 +85,14 @@ export function HomeView() {
             <SettingsIcon className="w-4 h-4 mr-2" /> Settings
           </Button>
           {canUploadAny && (
-            <label className="cursor-pointer">
-              <input
-                type="file"
-                multiple
-                className="hidden"
-                onChange={async (e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  if (files.length > 0) {
-                    await addFiles(files, { visibility: "public" });
-                    toast.success(`Uploading ${files.length} file(s)`);
-                  }
-                }}
-              />
-              <Button className="bg-brand-gradient text-white hover:opacity-95 shadow-brand btn-press">
-                <Upload className="w-4 h-4 mr-2" /> Upload Files
-              </Button>
-            </label>
+            <UploadButton
+              label="Upload Files"
+              className="bg-brand-gradient text-white hover:opacity-95 shadow-brand btn-press"
+              onFiles={async (files) => {
+                await addFiles(files, { visibility: "public" });
+                toast.success(`Uploading ${files.length} file(s)`);
+              }}
+            />
           )}
         </div>
       </motion.div>

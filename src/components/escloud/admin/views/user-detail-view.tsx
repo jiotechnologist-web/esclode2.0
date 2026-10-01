@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { formatBytes, formatDate, formatRelative } from "../../shared/use-media-list";
 import { DEFAULT_USER_PERMISSIONS, PERMISSIONS, ADMIN_TOGGLEABLE_PERMISSIONS } from "@/lib/permissions";
+import { UploadButton } from "../../shared/upload-button";
 import type { ApiMediaItem } from "@/lib/types";
 import { useUploadStore } from "@/stores/upload";
 
@@ -213,12 +214,16 @@ export function AdminUserDetailView() {
                   <CardTitle className="text-base">User Content</CardTitle>
                   <CardDescription className="text-xs">{userContent.length} files · {formatBytes(data.storage.used)} used</CardDescription>
                 </div>
-                <label className="cursor-pointer">
-                  <input type="file" multiple className="hidden" onChange={(e) => handleUpload(e.target.files)} />
-                  <Button size="sm" className="bg-brand-gradient text-white">
-                    <UploadIcon className="w-3.5 h-3.5 mr-1.5" /> Upload to User
-                  </Button>
-                </label>
+                <UploadButton
+                  label="Upload to User"
+                  size="sm"
+                  className="bg-brand-gradient text-white hover:opacity-95 shadow-brand btn-press"
+                  onFiles={async (files) => {
+                    await addFiles(files, { visibility: "public", targetUserId: userId });
+                    toast.success(`Uploading ${files.length} file(s) to ${data.user.username}`);
+                    setTimeout(refresh, 1000);
+                  }}
+                />
               </div>
             </CardHeader>
             <CardContent>
