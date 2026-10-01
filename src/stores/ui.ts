@@ -67,6 +67,8 @@ interface UIState {
     autoQuality: boolean;
     preBufferLevel: string;
     dataSaver: boolean;
+    reelsEnabled: boolean;
+    videoRotation: number;
   } | null;
   setVideoPrefs: (p: UIState["videoPrefs"]) => void;
 }

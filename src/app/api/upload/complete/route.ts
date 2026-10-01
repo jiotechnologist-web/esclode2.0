@@ -38,6 +38,7 @@ export async function POST(req: NextRequest) {
     let thumbRel: string | null = null;
     let width: number | null = null;
     let height: number | null = null;
+    let duration: number | null = null;
     if (upload.mediaType === "photo") {
       try {
         const meta = await generatePhotoMetadata(finalAbs);
@@ -46,6 +47,17 @@ export async function POST(req: NextRequest) {
         thumbRel = await ensureThumbnailForImage(upload.id, finalAbs, ext);
       } catch (e) {
         console.error("Thumbnail generation failed", e);
+      }
+    } else if (upload.mediaType === "video") {
+      try {
+        const { generateVideoThumbnail } = await import("@/lib/video-thumb");
+        const result = await generateVideoThumbnail(finalAbs, upload.id);
+        thumbRel = result.thumbnailRel || null;
+        duration = result.duration;
+        width = result.width;
+        height = result.height;
+      } catch (e) {
+        console.error("Video thumbnail generation failed", e);
       }
     }
 
@@ -70,6 +82,7 @@ export async function POST(req: NextRequest) {
         thumbnailPath: thumbRel,
         width,
         height,
+        duration,
         docType: upload.mediaType === "document" ? inferDocType(upload.filename) : null,
       },
     });

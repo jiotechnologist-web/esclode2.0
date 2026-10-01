@@ -47,6 +47,7 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
   const open = () => {
     if (item.type === "video") setOverlay("video-player", { mediaId: item.id });
     else if (item.type === "photo") setOverlay("photo-viewer", { mediaId: item.id });
+    else if (item.type === "document") setOverlay("photo-viewer", { mediaId: item.id }); // DocumentPreviewOverlay via fallback
     else if (item.type === "contact") setView("contacts", { focus: item.id });
     else setView("documents", { focus: item.id });
   };

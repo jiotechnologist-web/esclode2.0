@@ -10,9 +10,12 @@ export interface UploadJob {
   size: number;
   mimeType: string;
   status: "queued" | "uploading" | "completed" | "failed" | "cancelled" | "paused";
-  progress: number;
+  progress: number; // 0..1
   receivedChunks: number;
   totalChunks: number;
+  uploadedBytes: number; // bytes uploaded so far
+  speed: number; // bytes per second
+  eta: number | null; // seconds remaining
   error: string | null;
   startedAt: number;
   finishedAt: number | null;
@@ -55,7 +58,7 @@ async function startJob(job: UploadJob): Promise<void> {
     }));
   };
   try {
-    setJob({ status: "uploading", startedAt: Date.now(), progress: 0 });
+    setJob({ status: "uploading", startedAt: Date.now(), progress: 0, uploadedBytes: 0, speed: 0, eta: null });
     const initResp = await fetch("/api/upload/init", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -74,16 +77,19 @@ async function startJob(job: UploadJob): Promise<void> {
     }
     const initData = await initResp.json();
     const uploadId = initData.uploadId as string;
+    const chunkSize = initData.chunkSize ?? CHUNK_SIZE;
     setJob({ uploadId, totalChunks: initData.totalChunks });
 
     const concurrency = Math.min(3, initData.totalChunks);
     let idx = 0;
+    let lastProgressTime = Date.now();
+    let lastUploaded = 0;
     const worker = async () => {
       while (idx < initData.totalChunks) {
         const chunkIdx = idx++;
         if (chunkIdx >= initData.totalChunks) return;
-        const start = chunkIdx * CHUNK_SIZE;
-        const end = Math.min(start + CHUNK_SIZE, job.file.size);
+        const start = chunkIdx * chunkSize;
+        const end = Math.min(start + chunkSize, job.file.size);
         const blob = job.file.slice(start, end);
         const form = new FormData();
         form.append("uploadId", uploadId);
@@ -97,7 +103,21 @@ async function startJob(job: UploadJob): Promise<void> {
             if (!r.ok) throw new Error("chunk failed");
             ok = true;
             const data = await r.json();
-            setJob({ receivedChunks: data.receivedChunks, progress: data.receivedChunks / initData.totalChunks });
+            const uploadedBytes = data.receivedChunks * chunkSize;
+            const now = Date.now();
+            const elapsed = (now - lastProgressTime) / 1000;
+            const speed = elapsed > 0 ? (uploadedBytes - lastUploaded) / elapsed : 0;
+            const remaining = job.size - uploadedBytes;
+            const eta = speed > 0 ? remaining / speed : null;
+            setJob({
+              receivedChunks: data.receivedChunks,
+              progress: data.receivedChunks / initData.totalChunks,
+              uploadedBytes,
+              speed,
+              eta,
+            });
+            lastProgressTime = now;
+            lastUploaded = uploadedBytes;
           } catch {
             attempt++;
             await new Promise((r) => setTimeout(r, 800 * attempt));
@@ -123,7 +143,19 @@ async function startJob(job: UploadJob): Promise<void> {
       throw new Error(err.error ?? "complete failed");
     }
     const compData = await compResp.json();
-    setJob({ status: "completed", progress: 1, finishedAt: Date.now(), mediaId: compData.mediaId });
+    setJob({
+      status: "completed",
+      progress: 1,
+      uploadedBytes: job.size,
+      finishedAt: Date.now(),
+      mediaId: compData.mediaId,
+      speed: 0,
+      eta: 0,
+    });
+    // Broadcast for real-time UI sync (requirement #14)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("escloud-data-changed", { detail: { type: "upload", mediaId: compData.mediaId } }));
+    }
   } catch (e: any) {
     setJob({ status: "failed", error: e?.message ?? "Upload failed", finishedAt: Date.now() });
   }
@@ -147,6 +179,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       progress: 0,
       receivedChunks: 0,
       totalChunks: 0,
+      uploadedBytes: 0,
+      speed: 0,
+      eta: null,
       error: null,
       startedAt: 0,
       finishedAt: null,
@@ -192,8 +227,8 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   retryJob: async (id) => {
     const job = get().jobs.find((j) => j.id === id);
     if (!job) return;
-    set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, status: "queued", progress: 0, receivedChunks: 0, error: null, startedAt: 0, finishedAt: null, uploadId: undefined } : j)) }));
-    await startJob({ ...job, status: "queued", progress: 0, receivedChunks: 0, error: null, startedAt: 0, finishedAt: null, uploadId: undefined });
+    set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, status: "queued", progress: 0, receivedChunks: 0, uploadedBytes: 0, speed: 0, eta: null, error: null, startedAt: 0, finishedAt: null, uploadId: undefined } : j)) }));
+    await startJob({ ...job, status: "queued", progress: 0, receivedChunks: 0, uploadedBytes: 0, speed: 0, eta: null, error: null, startedAt: 0, finishedAt: null, uploadId: undefined });
   },
   clearCompleted: () => {
     set((s) => ({ jobs: s.jobs.filter((j) => j.status !== "completed" && j.status !== "cancelled") }));

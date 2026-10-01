@@ -58,6 +58,14 @@ export function useMediaList(opts: FetchOpts) {
     fetchPage(1, false);
   }, [fetchPage]);
 
+  // Real-time sync: when uploads complete or media changes are broadcast,
+  // refresh this list automatically (requirement #14)
+  useEffect(() => {
+    const handler = () => { setPage(1); fetchPage(1, false); };
+    window.addEventListener("escloud-data-changed", handler);
+    return () => window.removeEventListener("escloud-data-changed", handler);
+  }, [fetchPage]);
+
   const loadMore = useCallback(async () => {
     if (!hasMore || loading) return;
     const next = page + 1;
@@ -73,19 +81,27 @@ export function useMediaList(opts: FetchOpts) {
   return { items, loading, error, total, hasMore, loadMore, refresh, page };
 }
 
-export async function toggleFavorite(id: string): Promise<boolean> {
-  const r = await fetch(`/api/media/${id}/favorite`, { method: "POST" });
-  if (!r.ok) throw new Error("Failed to favorite");
-  const d = await r.json();
-  return d.isFavorite;
-}
-
 export async function deleteMedia(id: string): Promise<void> {
   const r = await fetch(`/api/media/${id}`, { method: "DELETE" });
   if (!r.ok) {
     const d = await r.json().catch(() => ({}));
     throw new Error(d.error ?? "Failed to delete");
   }
+  // Broadcast for real-time UI sync (requirement #14)
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("escloud-data-changed", { detail: { type: "delete", mediaId: id } }));
+  }
+}
+
+export async function toggleFavorite(id: string): Promise<boolean> {
+  const r = await fetch(`/api/media/${id}/favorite`, { method: "POST" });
+  if (!r.ok) throw new Error("Failed to favorite");
+  const d = await r.json();
+  // Broadcast so Favorites view refreshes
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("escloud-data-changed", { detail: { type: "favorite", mediaId: id } }));
+  }
+  return d.isFavorite;
 }
 
 export async function saveWatchProgress(id: string, position: number, duration?: number): Promise<void> {

@@ -11,14 +11,25 @@ export const ALL_USER_NAV_ITEMS = [
 // Items that must always remain accessible (cannot be hidden)
 export const REQUIRED_NAV_ITEMS = ["home", "profile"] as const;
 
+// Default video prefs — preloadVideos defaults to TRUE per requirement #1
+const DEFAULT_VIDEO_PREFS = {
+  preloadVideos: true,
+  advancedVideoPlay: true,
+  preferredQuality: "auto",
+  autoQuality: true,
+  preBufferLevel: "adaptive",
+  dataSaver: false,
+};
+
 export async function GET(req: NextRequest) {
   const ctx = await getRequestContext(req);
   if (!ctx.user) return jsonError("Not authenticated", 401);
 
   let pref = await db.userNavPref.findUnique({ where: { userId: ctx.user.id } });
   if (!pref) {
+    // Create defaults with preloadVideos=true
     pref = await db.userNavPref.create({
-      data: { userId: ctx.user.id, primaryItems: "[]", hiddenItems: "[]" },
+      data: { userId: ctx.user.id, primaryItems: "[]", hiddenItems: "[]", ...DEFAULT_VIDEO_PREFS },
     });
   }
 
@@ -31,6 +42,8 @@ export async function GET(req: NextRequest) {
     autoQuality: pref.autoQuality,
     preBufferLevel: pref.preBufferLevel,
     dataSaver: pref.dataSaver,
+    reelsEnabled: pref.reelsEnabled,
+    videoRotation: pref.videoRotation,
   });
 }
 
@@ -64,6 +77,8 @@ export async function PUT(req: NextRequest) {
     if (typeof body.autoQuality === "boolean") data.autoQuality = body.autoQuality;
     if (typeof body.preBufferLevel === "string") data.preBufferLevel = body.preBufferLevel;
     if (typeof body.dataSaver === "boolean") data.dataSaver = body.dataSaver;
+    if (typeof body.reelsEnabled === "boolean") data.reelsEnabled = body.reelsEnabled;
+    if (typeof body.videoRotation === "number") data.videoRotation = body.videoRotation;
 
     const pref = await db.userNavPref.upsert({
       where: { userId: ctx.user.id },
@@ -80,6 +95,8 @@ export async function PUT(req: NextRequest) {
       autoQuality: pref.autoQuality,
       preBufferLevel: pref.preBufferLevel,
       dataSaver: pref.dataSaver,
+      reelsEnabled: pref.reelsEnabled,
+      videoRotation: pref.videoRotation,
     });
   } catch (e: any) {
     return jsonError(e?.message ?? "Failed to save preferences", 500);

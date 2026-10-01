@@ -419,13 +419,17 @@ model UserNavPref {
   primaryItems String @default("[]")
   // JSON-encoded array of view keys hidden from the More menu
   hiddenItems  String @default("[]")
-  // User video settings
-  preloadVideos Boolean @default(false)
+  // User video settings — preloadVideos defaults to TRUE per requirement #1
+  preloadVideos Boolean @default(true)
   advancedVideoPlay Boolean @default(true)
   preferredQuality String @default("auto")
   autoQuality Boolean @default(true)
   preBufferLevel String @default("adaptive")
   dataSaver Boolean @default(false)
+  // Reels/Shorts mode toggle (requirement #1)
+  reelsEnabled Boolean @default(false)
+  // Video rotation preference (degrees: 0, 90, 180, 270)
+  videoRotation Int @default(0)
   updatedAt DateTime @updatedAt
 }
 
