@@ -89,7 +89,7 @@ export async function GET(
   });
 }
 
-// DELETE /api/media/[id] - delete media (owner or admin)
+// DELETE /api/media/[id] - delete media (owner, admin, or user with delete permission who has access)
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -102,10 +102,27 @@ export async function DELETE(
 
   const isOwner = media.ownerId === ctx.user.id;
   const isAdmin = ctx.user.role === "admin";
+  const hasDeletePermission = ctx.user.permissions.includes("delete_own");
 
-  if (!isOwner && !isAdmin) return jsonError("Not allowed", 403);
-  if (isOwner && !isAdmin && !ctx.user.permissions.includes("delete_own")) {
-    return jsonError("No delete permission", 403);
+  // Admin can delete anything
+  if (isAdmin) {
+    // proceed
+  } else if (isOwner && hasDeletePermission) {
+    // Owner can delete their own media if they have delete_own permission
+    // proceed
+  } else if (!isOwner && hasDeletePermission) {
+    // Non-owner with delete permission: check if they have PrivateAccess to this media
+    const hasAccess = await db.privateAccess.findUnique({
+      where: { mediaId_userId: { mediaId: id, userId: ctx.user.id } },
+    });
+    if (!hasAccess) {
+      return jsonError("You don't have permission to delete this content", 403);
+    }
+    // proceed — user has delete permission AND private access to this media
+  } else if (isOwner && !hasDeletePermission) {
+    return jsonError("You don't have delete permission", 403);
+  } else {
+    return jsonError("You don't have permission to delete this content", 403);
   }
 
   // Delete file(s)
