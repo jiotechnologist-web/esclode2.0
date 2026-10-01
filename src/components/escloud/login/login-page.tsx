@@ -362,16 +362,6 @@ function UserLoginCard({
           </Button>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mt-6 pt-5 border-t border-border/50"
-        >
-          <div className="text-xs text-center text-muted-foreground">
-            Demo: <code className="px-1.5 py-0.5 rounded bg-muted font-mono">demo@escloud.local</code> / <code className="px-1.5 py-0.5 rounded bg-muted font-mono">demo123</code>
-          </div>
-        </motion.div>
       </div>
     </Card>
   );
@@ -469,11 +459,6 @@ function AdminLoginCard({ onBack }: { onBack: () => void }) {
         <Button variant="ghost" onClick={onBack} className="w-full">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to user login
         </Button>
-
-        <div className="text-[11px] text-muted-foreground text-center pt-2 border-t border-border/50">
-          Default: <code className="px-1.5 py-0.5 rounded bg-muted font-mono">jiotechnologist@gmail.com</code> /{" "}
-          <code className="px-1.5 py-0.5 rounded bg-muted font-mono">741504</code>
-        </div>
       </div>
     </Card>
   );
