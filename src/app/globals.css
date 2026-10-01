@@ -179,6 +179,35 @@
     border-image: linear-gradient(135deg, #10b981, #06b6d4) 1;
   }
 
+  /* Fullscreen styling — ensure container fills the screen */
+  :fullscreen {
+    background: #000;
+  }
+  :-webkit-full-screen {
+    background: #000;
+  }
+  :fullscreen video {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+  }
+  :-webkit-full-screen video {
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+  }
+  :fullscreen .video-fullscreen-container {
+    width: 100vw !important;
+    height: 100vh !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
   /* Glassmorphism */
   .glass {
     background: rgba(255, 255, 255, 0.65);

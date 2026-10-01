@@ -1,18 +1,17 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useUIStore } from "@/stores/ui";
-import { useAuthStore } from "@/stores/auth";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 import {
-  ChevronLeft, ChevronRight, X, Play, Pause, Volume2, VolumeX, Heart,
+  ChevronLeft, ChevronRight, X, Play, Pause, Volume2, VolumeX,
   Maximize, Minimize, RotateCw, RotateCcw, Settings, Loader2, SkipForward, SkipBack,
+  Smartphone, Monitor,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { saveWatchProgress } from "./use-media-list";
 import type { ApiMediaItem } from "@/lib/types";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
   items: ApiMediaItem[];
@@ -21,8 +20,18 @@ interface Props {
   onClose: () => void;
 }
 
-export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClose }: Props) {
+function formatTime(s: number): string {
+  if (!s || s < 0) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  const h = Math.floor(s / 3600);
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+export function VideoPlayerOverlay({ items, startIndex, reelsMode: initialReelsMode = false, onClose }: Props) {
   const videoPrefs = useUIStore((s) => s.videoPrefs);
+  const setVideoPrefs = useUIStore((s) => s.setVideoPrefs);
   const [index, setIndex] = useState(startIndex);
   const [playing, setPlaying] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -33,9 +42,11 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
   const [loading, setLoading] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [rate, setRate] = useState(1);
-  const [rotation, setRotation] = useState(0);
+  const [rotation, setRotation] = useState(videoPrefs?.videoRotation ?? 0);
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [reelsMode, setReelsMode] = useState(initialReelsMode || videoPrefs?.reelsEnabled || false);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hideControlsTimerRef = useRef<any>(null);
@@ -55,7 +66,14 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
   // Keyboard shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+      if (e.key === "Escape") {
+        if (document.fullscreenElement) {
+          document.exitFullscreen?.();
+          setFullscreen(false);
+        } else {
+          onClose();
+        }
+      }
       else if (e.key === "ArrowRight") next();
       else if (e.key === "ArrowLeft") prev();
       else if (e.key === " ") { e.preventDefault(); togglePlay(); }
@@ -72,7 +90,7 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
     setTime(0);
     setDuration(0);
     setBuffered(0);
-    setRotation(0);
+    setRotation(videoPrefs?.videoRotation ?? 0);
   }, [index]);
 
   // Auto-hide controls
@@ -118,29 +136,53 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
   };
 
   const toggleFullscreen = async () => {
-    if (!containerRef.current) return;
     try {
       if (!document.fullscreenElement) {
-        await containerRef.current.requestFullscreen();
+        // Request fullscreen on the container element
+        const el = containerRef.current;
+        if (el) {
+          if (el.requestFullscreen) {
+            await el.requestFullscreen();
+          } else if ((el as any).webkitRequestFullscreen) {
+            await (el as any).webkitRequestFullscreen();
+          } else if ((el as any).msRequestFullscreen) {
+            await (el as any).msRequestFullscreen();
+          } else if (videoRef.current && (videoRef.current as any).webkitEnterFullscreen) {
+            // iOS Safari fallback
+            (videoRef.current as any).webkitEnterFullscreen();
+            return;
+          }
+        }
         setFullscreen(true);
       } else {
         await document.exitFullscreen();
         setFullscreen(false);
       }
     } catch (e) {
-      // iOS Safari fallback — use webkitEnterFullscreen on the video element
-      if (videoRef.current && (videoRef.current as any).webkitEnterFullscreen) {
-        (videoRef.current as any).webkitEnterFullscreen();
-      } else {
-        toast.error("Fullscreen not supported");
+      console.error("Fullscreen error:", e);
+      // Try video element fullscreen as fallback
+      if (videoRef.current) {
+        try {
+          const v = videoRef.current as any;
+          if (v.webkitEnterFullscreen) {
+            v.webkitEnterFullscreen();
+            setFullscreen(true);
+            return;
+          }
+        } catch {}
       }
+      toast.error("Fullscreen not supported in this browser");
     }
   };
 
   useEffect(() => {
     const onFs = () => setFullscreen(!!document.fullscreenElement);
     document.addEventListener("fullscreenchange", onFs);
-    return () => document.removeEventListener("fullscreenchange", onFs);
+    document.addEventListener("webkitfullscreenchange", onFs);
+    return () => {
+      document.removeEventListener("fullscreenchange", onFs);
+      document.removeEventListener("webkitfullscreenchange", onFs);
+    };
   }, []);
 
   // Double-tap/click to seek
@@ -174,6 +216,23 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
     touchStartY.current = null;
   };
 
+  // Toggle reels mode and save to prefs
+  const toggleReelsMode = () => {
+    const newVal = !reelsMode;
+    setReelsMode(newVal);
+    // Save to user prefs
+    if (setVideoPrefs && videoPrefs) {
+      setVideoPrefs({ ...videoPrefs, reelsEnabled: newVal });
+    }
+    // Also save to server
+    fetch("/api/user/nav-prefs", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reelsEnabled: newVal }),
+    }).catch(() => {});
+    toast.success(newVal ? "Reels mode enabled" : "Reels mode disabled");
+  };
+
   if (!media) {
     return (
       <div className="fixed inset-0 bg-black z-50 flex items-center justify-center text-white">
@@ -183,98 +242,110 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
     );
   }
 
-  const formatTime = (s: number) => {
-    if (!s || s < 0) return "0:00";
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
-    const h = Math.floor(s / 3600);
-    if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
-    return `${m}:${String(sec).padStart(2, "0")}`;
-  };
-
-  // Reels mode: full-height vertical swipe interface
+  // === REELS MODE (vertical swipe) ===
   if (reelsMode) {
     return (
-      <div className="fixed inset-0 bg-black z-50 select-none" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-        <motion.div
-          key={index}
-          initial={{ opacity: 0, y: 80 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="h-full flex items-center justify-center"
-        >
+      <div
+        className="fixed inset-0 bg-black z-50 select-none"
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+        ref={containerRef}
+      >
+        {/* Video fills entire screen */}
+        <div className="absolute inset-0 flex items-center justify-center video-fullscreen-container">
           <video
             ref={videoRef}
             src={`/api/media/${media.id}/stream`}
-            className="h-full w-full object-contain"
+            className="w-full h-full object-contain"
+            style={{ transform: `rotate(${rotation}deg)` }}
             playsInline
             autoPlay
             loop
             preload={preloadAttr as any}
             poster={media.thumbnailUrl ?? undefined}
-            onLoadedMetadata={(e) => {
-              setDuration(e.currentTarget.duration);
-              setLoading(false);
-              e.currentTarget.play();
-            }}
+            onLoadedMetadata={(e) => { setDuration(e.currentTarget.duration); setLoading(false); e.currentTarget.play(); }}
             onPlay={() => { setPlaying(true); showControlsTemp(); }}
             onPause={() => setPlaying(false)}
             onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
-            onProgress={(e) => {
-              const v = e.currentTarget;
-              if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1));
-            }}
+            onProgress={(e) => { const v = e.currentTarget; if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1)); }}
             onWaiting={() => setLoading(true)}
             onPlaying={() => setLoading(false)}
             onEnded={() => next()}
             crossOrigin="anonymous"
-            style={{ transform: `rotate(${rotation}deg)` }}
           />
-        </motion.div>
+        </div>
 
         {/* Top bar */}
-        {showControls && (
-          <div className="absolute top-0 inset-x-0 z-20 p-4 pt-safe bg-gradient-to-b from-black/70 to-transparent flex items-center justify-between">
-            <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10">
-              <X className="w-5 h-5" />
-            </Button>
-            <div className="text-white text-sm font-medium truncate max-w-[60%]">{media.name}</div>
-            <Button variant="ghost" size="icon" onClick={() => setShowSettings(!showSettings)} className="text-white hover:bg-white/10">
-              <Settings className="w-5 h-5" />
-            </Button>
-          </div>
-        )}
+        <AnimatePresence>
+          {showControls && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-0 inset-x-0 z-20 p-4 pt-safe bg-gradient-to-b from-black/70 to-transparent flex items-center justify-between"
+            >
+              <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10">
+                <X className="w-6 h-6" />
+              </Button>
+              <div className="text-white text-sm font-medium truncate max-w-[50%]">{media.name}</div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleReelsMode}
+                  className={cn("text-white hover:bg-white/10", reelsMode && "bg-emerald-500/30")}
+                  title="Toggle Reels Mode"
+                >
+                  <Smartphone className="w-5 h-5" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => setShowSettings(!showSettings)} className="text-white hover:bg-white/10">
+                  <Settings className="w-5 h-5" />
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Right-side action rail */}
-        <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-5">
-          <ReelsAction icon={Heart} active={false} label="Like" onClick={() => {}} />
-          <ReelsAction icon={Volume2} active={!muted} label={muted ? "Unmute" : "Mute"} onClick={toggleMute} />
-          <ReelsAction icon={RotateCw} active={false} label="Rotate" onClick={() => setRotation((r) => (r + 90) % 360)} />
-          <ReelsAction icon={Maximize} active={fullscreen} label="Fullscreen" onClick={toggleFullscreen} />
-        </div>
+        <AnimatePresence>
+          {showControls && (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-5"
+            >
+              <ReelsAction icon={Play} label="Play" onClick={togglePlay} />
+              <ReelsAction icon={muted ? VolumeX : Volume2} label={muted ? "Unmute" : "Mute"} onClick={toggleMute} />
+              <ReelsAction icon={RotateCw} label="Rotate" onClick={() => setRotation((r) => (r + 90) % 360)} />
+              <ReelsAction icon={Maximize} label="Fullscreen" onClick={toggleFullscreen} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Bottom controls: progress + play */}
-        <div className="absolute bottom-0 inset-x-0 z-20 p-4 pb-safe bg-gradient-to-t from-black/80 to-transparent" onClick={showControlsTemp}>
-          <div className="flex items-center gap-3 mb-3">
-            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="text-white hover:bg-white/10">
-              {playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-            </Button>
-            <div className="text-white text-xs font-mono">{formatTime(time)} / {formatTime(duration)}</div>
-          </div>
-          <div className="relative h-1.5 bg-white/20 rounded-full overflow-hidden">
-            <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: `${(buffered / (duration || 1)) * 100}%` }} />
-            <input
-              type="range"
-              min={0}
-              max={duration || 0}
-              step={0.1}
-              value={time}
-              onChange={(e) => seek(Number(e.target.value))}
-              className="absolute inset-0 w-full opacity-0 cursor-pointer"
-            />
-            <div className="absolute inset-y-0 left-0 brand-progress rounded-full" style={{ width: `${(time / (duration || 1)) * 100}%` }} />
-          </div>
-        </div>
+        {/* Bottom controls */}
+        <AnimatePresence>
+          {showControls && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="absolute bottom-0 inset-x-0 z-20 p-4 pb-safe bg-gradient-to-t from-black/80 to-transparent"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <Button variant="ghost" size="icon" onClick={togglePlay} className="text-white hover:bg-white/10">
+                  {playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+                </Button>
+                <div className="text-white text-xs font-mono">{formatTime(time)} / {formatTime(duration)}</div>
+              </div>
+              <div className="relative h-1.5 bg-white/20 rounded-full overflow-hidden cursor-pointer">
+                <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: `${(buffered / (duration || 1)) * 100}%` }} />
+                <div className="absolute inset-y-0 left-0 brand-progress rounded-full" style={{ width: `${(time / (duration || 1)) * 100}%` }} />
+                <input type="range" min={0} max={duration || 0} step={0.1} value={time} onChange={(e) => seek(Number(e.target.value))} className="absolute inset-0 w-full opacity-0 cursor-pointer" />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Loading spinner */}
         {loading && (
@@ -284,62 +355,91 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
         )}
 
         {/* Settings popover */}
-        {showSettings && (
-          <div className="absolute top-16 right-3 z-30 bg-black/90 backdrop-blur-md text-white rounded-2xl border border-white/10 p-4 w-64 space-y-3">
-            <div className="text-sm font-medium">Playback Speed</div>
-            <div className="flex flex-wrap gap-1">
-              {[0.5, 0.75, 1, 1.25, 1.5, 2].map((r) => (
-                <button
-                  key={r}
-                  onClick={() => { setRate(r); if (videoRef.current) videoRef.current.playbackRate = r; }}
-                  className={cn("px-2 py-1 rounded-lg text-xs", rate === r ? "bg-primary text-primary-foreground" : "bg-white/10")}
-                >
-                  {r}×
+        <AnimatePresence>
+          {showSettings && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="absolute top-16 right-3 z-30 bg-black/95 backdrop-blur-md text-white rounded-2xl border border-white/10 p-4 w-64 space-y-3"
+            >
+              <div className="text-sm font-medium">Playback Speed</div>
+              <div className="flex flex-wrap gap-1">
+                {[0.5, 0.75, 1, 1.25, 1.5, 2].map((r) => (
+                  <button key={r} onClick={() => { setRate(r); if (videoRef.current) videoRef.current.playbackRate = r; }} className={cn("px-2 py-1 rounded-lg text-xs", rate === r ? "bg-primary text-primary-foreground" : "bg-white/10")}>
+                    {r}×
+                  </button>
+                ))}
+              </div>
+              <div className="text-sm font-medium mt-2">Rotation: {rotation}°</div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation((r) => (r - 90 + 360) % 360)}><RotateCcw className="w-3.5 h-3.5 mr-1" />-90°</Button>
+                <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation((r) => (r + 90) % 360)}><RotateCw className="w-3.5 h-3.5 mr-1" />+90°</Button>
+                <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation(0)}>Reset</Button>
+              </div>
+              <div className="pt-2 border-t border-white/10">
+                <button onClick={toggleReelsMode} className={cn("w-full flex items-center gap-2 p-2 rounded-lg text-sm", reelsMode ? "bg-emerald-500/30 text-white" : "bg-white/10 text-white")}>
+                  <Monitor className="w-4 h-4" />
+                  {reelsMode ? "Switch to Standard Mode" : "Switch to Reels Mode"}
                 </button>
-              ))}
-            </div>
-            <div className="text-sm font-medium mt-2">Rotation: {rotation}°</div>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation((r) => (r - 90 + 360) % 360)}><RotateCcw className="w-3.5 h-3.5 mr-1" />-90°</Button>
-              <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation((r) => (r + 90) % 360)}><RotateCw className="w-3.5 h-3.5 mr-1" />+90°</Button>
-              <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation(0)}>Reset</Button>
-            </div>
-          </div>
-        )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
 
-  // Standard horizontal/overlay video player
+  // === STANDARD MODE (horizontal) ===
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 bg-black z-50 select-none flex flex-col"
+      className="fixed inset-0 bg-black z-50 select-none flex flex-col video-fullscreen-container"
       onMouseMove={showControlsTemp}
       onClick={showControlsTemp}
     >
       {/* Top bar */}
-      <div className={cn("absolute top-0 inset-x-0 z-20 p-4 pt-safe bg-gradient-to-b from-black/70 to-transparent flex items-center justify-between transition-opacity", showControls ? "opacity-100" : "opacity-0")}>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10">
-            <X className="w-5 h-5" />
-          </Button>
-          <div className="text-white text-sm font-medium truncate max-w-[60vw]">{media.name}</div>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="text-white/70 text-xs mr-2">{index + 1} / {items.length}</span>
-          <Button variant="ghost" size="icon" onClick={() => setShowSettings(!showSettings)} className="text-white hover:bg-white/10">
-            <Settings className="w-5 h-5" />
-          </Button>
-        </div>
-      </div>
+      <AnimatePresence>
+        {showControls && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-0 inset-x-0 z-20 p-4 pt-safe bg-gradient-to-b from-black/70 to-transparent flex items-center justify-between"
+          >
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10">
+                <X className="w-5 h-5" />
+              </Button>
+              <div className="text-white text-sm font-medium truncate max-w-[50vw]">{media.name}</div>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-white/70 text-xs mr-2">{index + 1} / {items.length}</span>
+              {/* Reels mode toggle button - visible directly in player */}
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={toggleReelsMode}
+                className={cn("text-white hover:bg-white/10", reelsMode && "bg-emerald-500/30")}
+                title="Switch to Reels Mode"
+              >
+                <Smartphone className="w-5 h-5" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setShowSettings(!showSettings)} className="text-white hover:bg-white/10">
+                <Settings className="w-5 h-5" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Video element */}
-      <div className="flex-1 flex items-center justify-center relative" onClick={onAreaClick}>
+      {/* Video element — fills the container properly */}
+      <div className="flex-1 flex items-center justify-center relative overflow-hidden" onClick={onAreaClick}>
         <video
           ref={videoRef}
           src={`/api/media/${media.id}/stream`}
-          className="max-h-full max-w-full object-contain"
+          className="w-full h-full object-contain"
+          style={{ transform: `rotate(${rotation}deg)`, transition: "transform 0.2s ease" }}
           playsInline
           preload={preloadAttr as any}
           poster={media.thumbnailUrl ?? undefined}
@@ -347,15 +447,11 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
           onPlay={() => { setPlaying(true); showControlsTemp(); }}
           onPause={() => setPlaying(false)}
           onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
-          onProgress={(e) => {
-            const v = e.currentTarget;
-            if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1));
-          }}
+          onProgress={(e) => { const v = e.currentTarget; if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1)); }}
           onWaiting={() => setLoading(true)}
           onPlaying={() => setLoading(false)}
           onEnded={() => saveWatchProgress(media.id, videoRef.current?.duration ?? 0, videoRef.current?.duration)}
           crossOrigin="anonymous"
-          style={{ transform: `rotate(${rotation}deg)`, transition: "transform 0.2s ease" }}
         />
 
         {/* Loading spinner */}
@@ -367,7 +463,7 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
 
         {/* Center play button when paused */}
         {!playing && !loading && (
-          <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="absolute inset-0 flex items-center justify-center">
+          <button onClick={(e) => { e.stopPropagation(); togglePlay(); }} className="absolute inset-0 flex items-center justify-center z-10">
             <div className="w-20 h-20 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center">
               <Play className="w-10 h-10 text-white fill-white" />
             </div>
@@ -388,104 +484,104 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode = false, onClo
       </div>
 
       {/* Bottom controls */}
-      <div className={cn("absolute bottom-0 inset-x-0 z-20 p-4 pb-safe bg-gradient-to-t from-black/80 to-transparent transition-opacity", showControls ? "opacity-100" : "opacity-0")}>
-        {/* Progress bar */}
-        <div className="relative h-1.5 bg-white/20 rounded-full mb-3 cursor-pointer group">
-          <div className="absolute inset-y-0 left-0 bg-white/30 rounded-full" style={{ width: `${(buffered / (duration || 1)) * 100}%` }} />
-          <div className="absolute inset-y-0 left-0 brand-progress rounded-full" style={{ width: `${(time / (duration || 1)) * 100}%` }} />
-          <input
-            type="range"
-            min={0}
-            max={duration || 0}
-            step={0.1}
-            value={time}
-            onChange={(e) => seek(Number(e.target.value))}
-            className="absolute inset-0 w-full opacity-0 cursor-pointer"
-          />
-        </div>
+      <AnimatePresence>
+        {showControls && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-0 inset-x-0 z-20 p-4 pb-safe bg-gradient-to-t from-black/80 to-transparent"
+          >
+            {/* Progress bar */}
+            <div className="relative h-1.5 bg-white/20 rounded-full mb-3 cursor-pointer group">
+              <div className="absolute inset-y-0 left-0 bg-white/30 rounded-full" style={{ width: `${(buffered / (duration || 1)) * 100}%` }} />
+              <div className="absolute inset-y-0 left-0 brand-progress rounded-full" style={{ width: `${(time / (duration || 1)) * 100}%` }} />
+              <input type="range" min={0} max={duration || 0} step={0.1} value={time} onChange={(e) => seek(Number(e.target.value))} className="absolute inset-0 w-full opacity-0 cursor-pointer" />
+            </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={togglePlay} className="text-white hover:bg-white/10">
-            {playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => skip(-10)} className="text-white hover:bg-white/10">
-            <SkipBack className="w-5 h-5" />
-          </Button>
-          <Button variant="ghost" size="icon" onClick={() => skip(10)} className="text-white hover:bg-white/10">
-            <SkipForward className="w-5 h-5" />
-          </Button>
-          <div className="flex items-center gap-1 ml-1">
-            <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white hover:bg-white/10">
-              {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-            </Button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={muted ? 0 : volume}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                setVolume(v);
-                setMuted(v === 0);
-                if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; }
-              }}
-              className="w-16 h-1 accent-white"
-            />
-          </div>
-          <div className="text-white/80 text-xs font-mono ml-2">
-            {formatTime(time)} / {formatTime(duration)}
-          </div>
-          <div className="ml-auto flex items-center gap-2">
-            <select
-              value={rate}
-              onChange={(e) => { const v = Number(e.target.value); setRate(v); if (videoRef.current) videoRef.current.playbackRate = v; }}
-              className="bg-white/10 text-white text-xs rounded px-2 py-1 border-0"
-            >
-              <option value="0.5" className="text-black">0.5×</option>
-              <option value="0.75" className="text-black">0.75×</option>
-              <option value="1" className="text-black">1×</option>
-              <option value="1.25" className="text-black">1.25×</option>
-              <option value="1.5" className="text-black">1.5×</option>
-              <option value="2" className="text-black">2×</option>
-            </select>
-            <Button variant="ghost" size="icon" onClick={() => setRotation((r) => (r + 90) % 360)} className="text-white hover:bg-white/10" title="Rotate 90°">
-              <RotateCw className="w-5 h-5" />
-            </Button>
-            <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/10">
-              {fullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-            </Button>
-          </div>
-        </div>
-      </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={togglePlay} className="text-white hover:bg-white/10">
+                {playing ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => skip(-10)} className="text-white hover:bg-white/10">
+                <SkipBack className="w-5 h-5" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => skip(10)} className="text-white hover:bg-white/10">
+                <SkipForward className="w-5 h-5" />
+              </Button>
+              <div className="flex items-center gap-1 ml-1">
+                <Button variant="ghost" size="icon" onClick={toggleMute} className="text-white hover:bg-white/10">
+                  {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                </Button>
+                <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={(e) => { const v = Number(e.target.value); setVolume(v); setMuted(v === 0); if (videoRef.current) { videoRef.current.volume = v; videoRef.current.muted = v === 0; } }} className="w-16 h-1 accent-white" />
+              </div>
+              <div className="text-white/80 text-xs font-mono ml-2">
+                {formatTime(time)} / {formatTime(duration)}
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <select value={rate} onChange={(e) => { const v = Number(e.target.value); setRate(v); if (videoRef.current) videoRef.current.playbackRate = v; }} className="bg-white/10 text-white text-xs rounded px-2 py-1 border-0">
+                  <option value="0.5" className="text-black">0.5×</option>
+                  <option value="0.75" className="text-black">0.75×</option>
+                  <option value="1" className="text-black">1×</option>
+                  <option value="1.25" className="text-black">1.25×</option>
+                  <option value="1.5" className="text-black">1.5×</option>
+                  <option value="2" className="text-black">2×</option>
+                </select>
+                <Button variant="ghost" size="icon" onClick={() => setRotation((r) => (r + 90) % 360)} className="text-white hover:bg-white/10" title="Rotate 90°">
+                  <RotateCw className="w-5 h-5" />
+                </Button>
+                {/* Reels mode toggle in bottom bar too */}
+                <Button variant="ghost" size="icon" onClick={toggleReelsMode} className={cn("text-white hover:bg-white/10", reelsMode && "bg-emerald-500/30")} title="Reels Mode">
+                  <Smartphone className="w-5 h-5" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={toggleFullscreen} className="text-white hover:bg-white/10">
+                  {fullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Settings popover */}
-      {showSettings && (
-        <div className="absolute top-16 right-3 z-30 bg-black/90 backdrop-blur-md text-white rounded-2xl border border-white/10 p-4 w-64 space-y-3">
-          <div className="text-sm font-medium">Rotation: {rotation}°</div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation((r) => (r - 90 + 360) % 360)}><RotateCcw className="w-3.5 h-3.5 mr-1" />-90°</Button>
-            <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation((r) => (r + 90) % 360)}><RotateCw className="w-3.5 h-3.5 mr-1" />+90°</Button>
-            <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation(0)}>Reset</Button>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute top-16 right-3 z-30 bg-black/95 backdrop-blur-md text-white rounded-2xl border border-white/10 p-4 w-64 space-y-3"
+          >
+            <div className="text-sm font-medium">Rotation: {rotation}°</div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation((r) => (r - 90 + 360) % 360)}><RotateCcw className="w-3.5 h-3.5 mr-1" />-90°</Button>
+              <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation((r) => (r + 90) % 360)}><RotateCw className="w-3.5 h-3.5 mr-1" />+90°</Button>
+              <Button size="sm" variant="outline" className="text-white border-white/20" onClick={() => setRotation(0)}>Reset</Button>
+            </div>
+            <div className="pt-2 border-t border-white/10">
+              <button onClick={toggleReelsMode} className={cn("w-full flex items-center gap-2 p-2 rounded-lg text-sm", reelsMode ? "bg-emerald-500/30 text-white" : "bg-white/10 text-white")}>
+                <Smartphone className="w-4 h-4" />
+                {reelsMode ? "Switch to Standard Mode" : "Switch to Reels Mode"}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function ReelsAction({ icon: Icon, label, active, onClick }: { icon: any; label: string; active?: boolean; onClick: () => void }) {
+function ReelsAction({ icon: Icon, label, onClick }: { icon: any; label: string; onClick: () => void }) {
   return (
     <motion.button
       whileTap={{ scale: 0.85 }}
       onClick={onClick}
       className="flex flex-col items-center gap-1 text-white"
     >
-      <div className={cn("w-12 h-12 rounded-full glass flex items-center justify-center", active && "bg-emerald-500/30")}>
-        <Icon className={cn("w-6 h-6", active && "fill-white")} />
+      <div className="w-12 h-12 rounded-full glass flex items-center justify-center">
+        <Icon className="w-6 h-6" />
       </div>
       <span className="text-[10px]">{label}</span>
     </motion.button>
   );
 }
-
