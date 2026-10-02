@@ -1,24 +1,14 @@
 import { db } from "./db";
 
-// In-memory cache for settings (TTL: 30 seconds)
-let settingsCache: Record<string, string> | null = null;
-let cacheTimestamp = 0;
-const CACHE_TTL = 30_000; // 30 seconds
-
 /**
  * Get all system settings as a key-value map.
- * Uses a 30-second in-memory cache to avoid repeated DB queries.
+ * No caching — always reads from DB to ensure consistency across API routes.
+ * The settings table is tiny (~12 rows) so this is fast.
  */
 export async function getSystemSettings(): Promise<Record<string, string>> {
-  const now = Date.now();
-  if (settingsCache && (now - cacheTimestamp) < CACHE_TTL) {
-    return settingsCache;
-  }
   const settings = await db.systemSetting.findMany();
   const map: Record<string, string> = {};
   for (const s of settings) map[s.key] = s.value;
-  settingsCache = map;
-  cacheTimestamp = now;
   return map;
 }
 
@@ -35,22 +25,21 @@ export async function getSetting(key: string, defaultValue: string = ""): Promis
  * Check if maintenance mode is enabled.
  */
 export async function isMaintenanceMode(): Promise<boolean> {
-  const val = await getSetting("maintenance.mode", "off");
-  return val === "on";
+  const setting = await db.systemSetting.findUnique({ where: { key: "maintenance.mode" } });
+  return setting?.value === "on";
 }
 
 /**
  * Check if user registration is enabled.
  */
 export async function isRegistrationEnabled(): Promise<boolean> {
-  const val = await getSetting("registration.enabled", "off");
-  return val === "on";
+  const setting = await db.systemSetting.findUnique({ where: { key: "registration.enabled" } });
+  return setting?.value === "on";
 }
 
 /**
- * Invalidate the settings cache (call after admin updates settings).
+ * No-op — kept for backward compatibility. Settings are always read from DB.
  */
 export function invalidateSettingsCache() {
-  settingsCache = null;
-  cacheTimestamp = 0;
+  // No cache to invalidate — settings are always read from DB
 }

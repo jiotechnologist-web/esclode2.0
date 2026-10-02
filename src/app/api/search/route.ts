@@ -30,10 +30,22 @@ export async function GET(req: NextRequest) {
   } else if (ctx.user.role !== "admin") {
     where.AND.push({ type: { in: allowedTypes } });
   }
+
   if (ctx.user.role !== "admin") {
+    // Same privacy rules as media listing:
+    // 1. Own content
+    // 2. Admin's public content only (NOT other users' content)
+    // 3. Private content shared with this user
+    const adminUsers = await db.user.findMany({ where: { role: "admin" }, select: { id: true } });
+    const adminIds = adminUsers.map((u) => u.id);
+
     const orClauses: any[] = [{ ownerId: ctx.user.id }];
     if (allowedTypes.length > 0) {
-      orClauses.push({ visibility: "public", type: { in: allowedTypes } });
+      orClauses.push({
+        visibility: "public",
+        ownerId: { in: adminIds },
+        type: type ? type : { in: allowedTypes },
+      });
     }
     if (canPrivate) {
       orClauses.push({ visibility: "private", privateAccess: { some: { userId: ctx.user.id } } });

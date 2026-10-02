@@ -33,6 +33,12 @@ export async function GET(req: NextRequest) {
       if (ownerId) where.ownerId = ownerId;
       if (visibility) where.visibility = visibility;
     } else {
+      // NON-ADMIN USER ACCESS RULES:
+      // 1. Own content (regardless of public/private)
+      // 2. Admin's PUBLIC content (with appropriate view permission)
+      // 3. Private content explicitly shared with this user via PrivateAccess
+      // 4. NOT other users' content (even if marked "public" by another user)
+
       const allowedTypes: string[] = [];
       if (hasPermission(ctx.user.permissions, "view_videos")) allowedTypes.push("video");
       if (hasPermission(ctx.user.permissions, "view_photos")) allowedTypes.push("photo");
@@ -41,24 +47,25 @@ export async function GET(req: NextRequest) {
 
       const canSeePrivate = hasPermission(ctx.user.permissions, "view_private");
 
-      // Build OR filter
-      const orClauses: any[] = [{ ownerId: ctx.user.id }];
+      // Get all admin user IDs (admins' public content is visible to all)
+      const adminUsers = await db.user.findMany({ where: { role: "admin" }, select: { id: true } });
+      const adminIds = adminUsers.map((u) => u.id);
 
-      // public content visible per user permissions (per type)
-      const publicClause: any = { visibility: "public" };
-      if (type) {
-        // already filtered by type
-        if (!allowedTypes.includes(type)) {
-          // user has no permission to view this type at all
-          return jsonOk({ items: [], page, pageSize, total: 0 });
-        }
-        orClauses.push(publicClause);
-      } else {
-        if (allowedTypes.length > 0) {
-          orClauses.push({ visibility: "public", type: { in: allowedTypes } });
-        }
+      const orClauses: any[] = [
+        // 1. User's own content
+        { ownerId: ctx.user.id },
+      ];
+
+      // 2. Admin's public content (with type permission filter)
+      if (allowedTypes.length > 0) {
+        orClauses.push({
+          visibility: "public",
+          ownerId: { in: adminIds },
+          type: type ? type : { in: allowedTypes },
+        });
       }
 
+      // 3. Private content shared with this user
       if (canSeePrivate) {
         orClauses.push({
           visibility: "private",
@@ -68,12 +75,22 @@ export async function GET(req: NextRequest) {
 
       where.AND = [{ OR: orClauses }];
 
+      // Handle visibility filter
       if (visibility === "private") {
-        // If user requested private only, restrict further
         if (!canSeePrivate) return jsonOk({ items: [], page, pageSize, total: 0 });
-        where.AND = [{ OR: [{ ownerId: ctx.user.id, visibility: "private" }, { visibility: "private", privateAccess: { some: { userId: ctx.user.id } } }] }];
+        where.AND = [{
+          OR: [
+            { ownerId: ctx.user.id, visibility: "private" },
+            { visibility: "private", privateAccess: { some: { userId: ctx.user.id } } },
+          ]
+        }];
       } else if (visibility === "public") {
-        where.AND = [{ OR: [{ ownerId: ctx.user.id, visibility: "public" }, { visibility: "public", type: { in: allowedTypes } }] }];
+        where.AND = [{
+          OR: [
+            { ownerId: ctx.user.id, visibility: "public" },
+            { visibility: "public", ownerId: { in: adminIds }, type: type ? type : { in: allowedTypes } },
+          ]
+        }];
       }
     }
 
@@ -93,7 +110,6 @@ export async function GET(req: NextRequest) {
     let total: number;
 
     if (recent) {
-      // Recently viewed: from WatchHistory joined to Media
       const hist = await db.watchHistory.findMany({
         where: { userId: ctx.user.id, media: { type: type ?? "video" } },
         orderBy: { updatedAt: "desc" },
@@ -144,18 +160,6 @@ export async function GET(req: NextRequest) {
     console.error("Failed to fetch media:", e);
     return jsonError("Something went wrong. Please try again.", 500);
   }
-}
-
-async function fetchPrivateAccessCounts(mediaIds: string[]): Promise<Record<string, number>> {
-  if (mediaIds.length === 0) return {};
-  const rows = await db.privateAccess.groupBy({
-    by: ["mediaId"],
-    where: { mediaId: { in: mediaIds } },
-    _count: { _all: true },
-  });
-  const map: Record<string, number> = {};
-  for (const r of rows) map[r.mediaId] = r._count._all;
-  return map;
 }
 
 function mapMediaWithUser(

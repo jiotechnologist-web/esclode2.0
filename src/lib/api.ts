@@ -44,16 +44,37 @@ export function checkPermission(user: AuthUser | null, perm: string): boolean {
   return hasPermission(user.permissions, perm);
 }
 
+/**
+ * Check if a user can access a specific media item.
+ * 
+ * Access rules:
+ * - Admin: can access everything
+ * - Owner: can access their own content (regardless of public/private)
+ * - Public content from ADMIN: visible to all users with the appropriate view permission
+ * - Public content from another USER: NOT visible to other users (user content is private by default)
+ * - Private content: only visible to users with explicit PrivateAccess grant
+ */
 export async function canAccessMedia(
   user: AuthUser | null,
   mediaId: string
 ): Promise<boolean> {
   if (!user) return false;
   if (user.role === "admin") return true;
+  
   const media = await db.media.findUnique({ where: { id: mediaId } });
   if (!media) return false;
+  
+  // Owner can always access their own content
   if (media.ownerId === user.id) return true;
+  
+  // For content NOT owned by this user:
   if (media.visibility === "public") {
+    // Only allow access to public content if the OWNER is an admin
+    // (Regular users' "public" content is only visible to themselves, not to other users)
+    const owner = await db.user.findUnique({ where: { id: media.ownerId }, select: { role: true } });
+    if (!owner || owner.role !== "admin") return false;
+    
+    // Admin's public content: check view permission
     const permMap: Record<string, string> = {
       video: "view_videos",
       photo: "view_photos",
@@ -62,13 +83,16 @@ export async function canAccessMedia(
     };
     return hasPermission(user.permissions, permMap[media.type] ?? "");
   }
+  
   if (media.visibility === "private") {
+    // Private content: need explicit PrivateAccess grant
     if (!hasPermission(user.permissions, "view_private")) return false;
     const access = await db.privateAccess.findUnique({
       where: { mediaId_userId: { mediaId, userId: user.id } },
     });
     return !!access;
   }
+  
   return false;
 }
 
@@ -91,44 +115,4 @@ export async function canDownloadMedia(
     contact: "download_contacts",
   };
   return hasPermission(user.permissions, permMap[media.type] ?? "");
-}
-
-// Build a media list query for an authorized user
-export function buildMediaQueryForUser(user: AuthUser | null) {
-  // For admin: everything
-  if (user?.role === "admin") {
-    return {};
-  }
-  if (!user) return { id: "__none__" };
-  // public media (within user's view permissions) OR owned by user OR explicitly assigned private
-  return {
-    OR: [
-      { ownerId: user.id },
-      {
-        visibility: "public",
-        type: { in: allowedTypesForUser(user) },
-      },
-      {
-        visibility: "private",
-        id: {
-          in: {
-            select: { mediaId: true },
-            where: { userId: user.id },
-          } as any,
-        },
-      },
-    ],
-  };
-}
-
-function allowedTypesForUser(user: AuthUser): string[] {
-  const types: string[] = [];
-  if (hasPermission(user.permissions, "view_videos")) types.push("video");
-  if (hasPermission(user.permissions, "view_photos")) types.push("photo");
-  if (hasPermission(user.permissions, "view_documents")) types.push("document");
-  if (hasPermission(user.permissions, "view_contacts")) types.push("contact");
-  if (hasPermission(user.permissions, "view_private")) {
-    // private content is handled via PrivateAccess join
-  }
-  return types;
 }
