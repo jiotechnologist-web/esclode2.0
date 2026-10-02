@@ -122,7 +122,7 @@ async function startJob(job: UploadJob): Promise<void> {
     setJobImmediate({ uploadId, totalChunks, status: "uploading", progress: 0 });
 
     // Step 2: Upload chunks with higher concurrency for speed
-    const concurrency = Math.min(4, totalChunks);
+    const concurrency = Math.min(6, totalChunks);
     let chunkIdx = 0;
     let totalUploaded = 0;
     let lastSpeedCheck = Date.now();
@@ -241,7 +241,7 @@ async function startJob(job: UploadJob): Promise<void> {
 
 export const useUploadStore = create<UploadState>((set, get) => ({
   jobs: [],
-  maxConcurrent: 3,
+  maxConcurrent: 4,
   showPanel: false,
   setShowPanel: (v) => set({ showPanel: v }),
   addFiles: async (files, opts) => {

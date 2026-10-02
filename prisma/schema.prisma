@@ -435,3 +435,21 @@ model UserNavPref {
   updatedAt DateTime @updatedAt
 }
 
+// ---------------------------------------------------------------------------
+// NOTES (Notepad / Google Keep style)
+// ---------------------------------------------------------------------------
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String   @default("")
+  content   String   @default("")
+  color     String   @default("default")
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([pinned])
+}
+

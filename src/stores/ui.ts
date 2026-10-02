@@ -10,6 +10,7 @@ export type UserView =
   | "private"
   | "documents"
   | "contacts"
+  | "notes"
   | "uploads"
   | "favorites"
   | "recent"

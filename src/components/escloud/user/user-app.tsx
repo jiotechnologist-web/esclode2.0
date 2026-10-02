@@ -19,6 +19,7 @@ import { FavoritesView } from "./views/favorites-view";
 import { RecentView } from "./views/recent-view";
 import { ProfileView } from "./views/profile-view";
 import { SettingsView } from "./views/settings-view";
+import { NotesView } from "./views/notes-view";
 import { UploadManagerPanel } from "@/components/escloud/upload/upload-manager-panel";
 import { ImpersonationBanner } from "../shared/impersonation-banner";
 
@@ -27,7 +28,6 @@ export function UserApp() {
   const refreshSession = useAuthStore((s) => s.refreshSession);
   const view = useUIStore((s) => s.view) as UserView;
 
-  // Refresh session whenever the view changes (so permissions reflect admin changes immediately)
   useEffect(() => {
     refreshSession();
   }, [view, refreshSession]);
@@ -44,10 +44,7 @@ export function UserApp() {
   const canViewFavorites = hasPermission(user.permissions, PERMISSIONS.VIEW_FAVORITES);
   const canViewRecent = hasPermission(user.permissions, PERMISSIONS.VIEW_RECENT);
   const canViewUploads = hasPermission(user.permissions, PERMISSIONS.VIEW_UPLOADS);
-  const canScanQR = hasPermission(user.permissions, PERMISSIONS.QR_SCAN);
 
-  // Private menu shows if the user has either PRIVATE_ACCESS (their own private content)
-  // OR VIEW_PRIVATE (can see private content shared with them)
   const showPrivateMenu = hasPrivateAccess || canViewPrivate;
 
   const navItems: { key: UserView; label: string; icon: any; enabled: boolean; isPrivate?: boolean; isSystem?: boolean }[] = [
@@ -57,6 +54,7 @@ export function UserApp() {
     { key: "private", label: "Private", icon: Lock, enabled: showPrivateMenu, isPrivate: true },
     { key: "documents", label: "Documents", icon: FileText, enabled: canViewDocuments },
     { key: "contacts", label: "Contacts", icon: Users, enabled: canViewContacts },
+    { key: "notes", label: "Notes", icon: StickyNote, enabled: true },
     { key: "uploads", label: "Uploads", icon: Upload, enabled: canViewUploads && canUpload },
     { key: "favorites", label: "Favorites", icon: Heart, enabled: canViewFavorites },
     { key: "recent", label: "Recent", icon: History, enabled: canViewRecent },
@@ -77,6 +75,7 @@ export function UserApp() {
           {view === "private" && <PrivateView />}
           {view === "documents" && <DocumentsView />}
           {view === "contacts" && <ContactsView />}
+          {view === "notes" && <NotesView />}
           {view === "uploads" && <UploadsView />}
           {view === "favorites" && <FavoritesView />}
           {view === "recent" && <RecentView />}
@@ -101,4 +100,5 @@ import {
   History,
   UserCircle,
   Settings as SettingsIcon,
+  StickyNote,
 } from "lucide-react";

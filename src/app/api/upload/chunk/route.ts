@@ -26,50 +26,34 @@ export async function POST(req: NextRequest) {
 
     const abs = resolveStoragePath(upload.storagePath);
     const buf = Buffer.from(await chunk.arrayBuffer());
-    const CHUNK_SIZE = 10 * 1024 * 1024; // Must match init route
+    const CHUNK_SIZE = 10 * 1024 * 1024;
     const position = index * CHUNK_SIZE;
 
-    // Write the chunk at the chunk's position (random write)
+    // Write chunk at position — single file operation
     const fh = await fs.open(abs, "r+");
     await fh.write(buf, 0, buf.length, position);
     await fh.close();
 
-    // Mark chunk received
-    const existing = await db.uploadChunk.findUnique({
+    // Minimal DB operations — upsert chunk record + update received count in parallel
+    const newReceived = upload.receivedChunks + 1;
+    
+    await db.uploadChunk.upsert({
       where: { uploadId_index: { uploadId, index } },
-    });
-    if (!existing) {
-      await db.uploadChunk.create({
-        data: {
-          uploadId,
-          index,
-          size: BigInt(buf.length),
-          received: true,
-          receivedAt: new Date(),
-        },
-      });
-    } else {
-      await db.uploadChunk.update({
-        where: { id: existing.id },
-        data: { received: true, receivedAt: new Date(), size: BigInt(buf.length) },
-      });
-    }
-
-    const receivedCount = await db.uploadChunk.count({
-      where: { uploadId, received: true },
+      create: { uploadId, index, size: BigInt(buf.length), received: true, receivedAt: new Date() },
+      update: { received: true, receivedAt: new Date(), size: BigInt(buf.length) },
     });
 
     await db.upload.update({
       where: { id: uploadId },
-      data: { receivedChunks: receivedCount, updatedAt: new Date() },
+      data: { receivedChunks: newReceived },
     });
 
     return jsonOk({
       ok: true,
       index,
-      receivedChunks: receivedCount,
+      receivedChunks: newReceived,
       totalChunks: upload.totalChunks,
-      progress: receivedCount / upload.totalChunks,
+      progress: newReceived / upload.totalChunks,
     });
   } catch (e: any) {
     console.error("Chunk upload failed:", e);
