@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     const abs = resolveStoragePath(upload.storagePath);
     const buf = Buffer.from(await chunk.arrayBuffer());
-    const CHUNK_SIZE = 5 * 1024 * 1024;
+    const CHUNK_SIZE = 10 * 1024 * 1024; // Must match init route
     const position = index * CHUNK_SIZE;
 
     // Write the chunk at the chunk's position (random write)

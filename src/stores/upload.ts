@@ -24,7 +24,6 @@ export interface UploadJob {
   assignUserIds?: string[];
   mediaId?: string;
   thumbnailUrl?: string | null;
-  // Internal tracking for speed calculation
   _lastSpeedUpdate: number;
   _lastUploadedBytes: number;
 }
@@ -44,7 +43,8 @@ interface UploadState {
   clearCompleted: () => void;
 }
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks — good balance of speed vs memory
+// Use larger chunks for faster uploads — 10MB is a good balance
+const CHUNK_SIZE = 10 * 1024 * 1024;
 
 function detectMediaType(file: File): "video" | "photo" | "document" | "contact" {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
@@ -55,29 +55,48 @@ function detectMediaType(file: File): "video" | "photo" | "document" | "contact"
   return "document";
 }
 
-/**
- * Optimized upload function:
- * - Uses concurrent chunk uploads (up to 3 parallel)
- * - Tracks real-time speed by measuring chunk completion time
- * - Retries failed chunks up to 3 times
- * - Does NOT block the UI — all updates go through Zustand setState which batches renders
- * - Prevents duplicate uploads via a Set of active uploadIds
- */
 const activeUploads = new Set<string>();
 
 async function startJob(job: UploadJob): Promise<void> {
-  // Prevent duplicate uploads
   if (activeUploads.has(job.id)) return;
   activeUploads.add(job.id);
 
+  // Use a local state updater that batches to avoid excessive re-renders
+  let pendingUpdate: Partial<UploadJob> = {};
+  let updateTimer: any = null;
+
+  const flushUpdate = () => {
+    if (Object.keys(pendingUpdate).length > 0) {
+      const patch = pendingUpdate;
+      pendingUpdate = {};
+      useUploadStore.setState((s) => ({
+        jobs: s.jobs.map((j) => (j.id === job.id ? { ...j, ...patch } : j)),
+      }));
+    }
+  };
+
   const setJob = (patch: Partial<UploadJob>) => {
-    useUploadStore.setState((s) => ({
-      jobs: s.jobs.map((j) => (j.id === job.id ? { ...j, ...patch } : j)),
-    }));
+    pendingUpdate = { ...pendingUpdate, ...patch };
+    if (!updateTimer) {
+      updateTimer = setTimeout(() => {
+        updateTimer = null;
+        flushUpdate();
+      }, 100); // Batch updates every 100ms — smooth but not excessive
+    }
+  };
+
+  const setJobImmediate = (patch: Partial<UploadJob>) => {
+    // For status changes, flush immediately
+    if (updateTimer) {
+      clearTimeout(updateTimer);
+      updateTimer = null;
+    }
+    pendingUpdate = { ...pendingUpdate, ...patch };
+    flushUpdate();
   };
 
   try {
-    setJob({ status: "preparing", startedAt: Date.now(), progress: 0, uploadedBytes: 0, speed: 0, eta: null, _lastSpeedUpdate: Date.now(), _lastUploadedBytes: 0 });
+    setJobImmediate({ status: "preparing", startedAt: Date.now(), progress: 0, uploadedBytes: 0, speed: 0, eta: null, _lastSpeedUpdate: Date.now(), _lastUploadedBytes: 0 });
 
     // Step 1: Init upload
     const initResp = await fetch("/api/upload/init", {
@@ -100,10 +119,10 @@ async function startJob(job: UploadJob): Promise<void> {
     const uploadId = initData.uploadId as string;
     const chunkSize = initData.chunkSize ?? CHUNK_SIZE;
     const totalChunks = initData.totalChunks;
-    setJob({ uploadId, totalChunks, status: "uploading" });
+    setJobImmediate({ uploadId, totalChunks, status: "uploading", progress: 0 });
 
-    // Step 2: Upload chunks with concurrency
-    const concurrency = Math.min(3, totalChunks);
+    // Step 2: Upload chunks with higher concurrency for speed
+    const concurrency = Math.min(4, totalChunks);
     let chunkIdx = 0;
     let totalUploaded = 0;
     let lastSpeedCheck = Date.now();
@@ -133,12 +152,12 @@ async function startJob(job: UploadJob): Promise<void> {
             }
             success = true;
             const data = await r.json();
-            totalUploaded = data.receivedChunks * chunkSize;
-            
-            // Calculate speed every 500ms to avoid excessive updates
+            totalUploaded = Math.min(data.receivedChunks * chunkSize, job.size);
+
+            // Calculate speed every 300ms for smoother updates
             const now = Date.now();
             const elapsed = (now - lastSpeedCheck) / 1000;
-            if (elapsed >= 0.5) {
+            if (elapsed >= 0.3) {
               const bytesInPeriod = totalUploaded - lastSpeedBytes;
               const speed = elapsed > 0 ? bytesInPeriod / elapsed : 0;
               const remaining = job.size - totalUploaded;
@@ -149,13 +168,10 @@ async function startJob(job: UploadJob): Promise<void> {
                 uploadedBytes: totalUploaded,
                 speed,
                 eta,
-                _lastSpeedUpdate: now,
-                _lastUploadedBytes: totalUploaded,
               });
               lastSpeedCheck = now;
               lastSpeedBytes = totalUploaded;
             } else {
-              // Just update progress without speed calc
               setJob({
                 receivedChunks: data.receivedChunks,
                 progress: data.receivedChunks / totalChunks,
@@ -167,19 +183,20 @@ async function startJob(job: UploadJob): Promise<void> {
             if (attempt >= 3) {
               throw new Error(`Failed to upload chunk ${myIdx + 1} after 3 attempts. ${e?.message ?? "Network error."}`);
             }
-            // Wait before retry with exponential backoff
             await new Promise((r) => setTimeout(r, 500 * attempt));
           }
         }
       }
     };
 
-    // Launch concurrent chunk upload workers
     const workers = Array.from({ length: concurrency }, () => uploadChunk());
     await Promise.all(workers);
 
-    // Step 3: Complete upload
-    setJob({ status: "processing" });
+    // Flush any pending updates before status change
+    setJobImmediate({ progress: 1, uploadedBytes: job.size, speed: 0, eta: 0 });
+
+    // Step 3: Complete upload — show "processing" status
+    setJobImmediate({ status: "processing" });
     const compResp = await fetch("/api/upload/complete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -194,7 +211,7 @@ async function startJob(job: UploadJob): Promise<void> {
       throw new Error(err.error ?? "Upload completed but server processing failed. The file may need to be re-uploaded.");
     }
     const compData = await compResp.json();
-    setJob({
+    setJobImmediate({
       status: "completed",
       progress: 1,
       uploadedBytes: job.size,
@@ -210,8 +227,14 @@ async function startJob(job: UploadJob): Promise<void> {
       window.dispatchEvent(new CustomEvent("escloud-data-changed", { detail: { type: "upload", mediaId: compData.mediaId } }));
     }
   } catch (e: any) {
-    setJob({ status: "failed", error: e?.message ?? "Upload failed. Please try again.", finishedAt: Date.now(), speed: 0, eta: null });
+    setJobImmediate({ status: "failed", error: e?.message ?? "Upload failed. Please try again.", finishedAt: Date.now(), speed: 0, eta: null });
   } finally {
+    // Flush any remaining pending updates
+    if (updateTimer) {
+      clearTimeout(updateTimer);
+      updateTimer = null;
+    }
+    flushUpdate();
     activeUploads.delete(job.id);
   }
 }
@@ -223,7 +246,6 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   setShowPanel: (v) => set({ showPanel: v }),
   addFiles: async (files, opts) => {
     const visibility = opts.visibility ?? "public";
-    // Deduplicate files by name+size to prevent duplicate uploads
     const seen = new Set<string>();
     const uniqueFiles = files.filter((f) => {
       const key = `${f.name}-${f.size}`;
@@ -258,7 +280,6 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
     set((s) => ({ jobs: [...s.jobs, ...newJobs], showPanel: true }));
 
-    // Process queue with concurrency control
     const queue = [...newJobs];
     const max = get().maxConcurrent;
     const workers = Array.from({ length: Math.min(max, queue.length) }, async () => {

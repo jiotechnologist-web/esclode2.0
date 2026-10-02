@@ -6,7 +6,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { PERMISSIONS } from "@/lib/permissions";
 
-const CHUNK_SIZE = 5 * 1024 * 1024; // 5 MB chunks
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MB chunks — faster uploads with fewer HTTP requests
 
 export async function POST(req: NextRequest) {
   const ctx = await getRequestContext(req);
