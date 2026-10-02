@@ -33,6 +33,8 @@ model User {
   downloadEnabled Boolean  @default(true)
   approvalRequired Boolean @default(false) // user uploads require admin approval
   expiresAt       DateTime?
+  // Private content password (requirement #1) — bcrypt hashed, never exposed
+  privatePasswordHash String? @default("")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

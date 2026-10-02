@@ -1,30 +1,45 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestContext, jsonError, jsonOk } from "@/lib/api";
-import { PATHS, safeFilename } from "@/lib/storage";
+import { PATHS } from "@/lib/storage";
 import { promises as fs } from "fs";
 import path from "path";
 import { randomBytes } from "crypto";
+import sharp from "sharp";
 
-// POST /api/profile/avatar — upload profile picture
+// POST /api/profile/avatar — upload profile picture with auto-crop/resize
 export async function POST(req: NextRequest) {
   const ctx = await getRequestContext(req);
   if (!ctx.user) return jsonError("Not authenticated", 401);
   const form = await req.formData();
   const file = form.get("file") as File | null;
   if (!file) return jsonError("Missing file", 400);
-  if (!file.type.startsWith("image/")) return jsonError("Not an image", 400);
-  if (file.size > 5 * 1024 * 1024) return jsonError("Avatar too large (max 5MB)", 413);
+  if (!file.type.startsWith("image/")) return jsonError("Not an image. Please select a photo file (JPG, PNG, WEBP).", 400);
+  if (file.size > 10 * 1024 * 1024) return jsonError("Image too large (max 10MB). Please choose a smaller image.", 413);
 
   try {
     await fs.mkdir(PATHS.AVATARS, { recursive: true });
+    
+    // Read the file buffer
     const buf = Buffer.from(await file.arrayBuffer());
-    const ext = file.name.includes(".") ? file.name.slice(file.name.lastIndexOf(".")) : ".jpg";
-    const safe = randomBytes(16).toString("hex") + ext;
+    
+    // Use sharp to auto-resize and crop to a square 256x256 avatar
+    // This ensures: correct aspect ratio, reasonable file size, proper centering
+    const processedBuf = await sharp(buf)
+      .resize(256, 256, {
+        fit: "cover",
+        position: "center",
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    
+    const safe = randomBytes(16).toString("hex") + ".jpg";
     const abs = path.join(PATHS.AVATARS, safe);
-    await fs.writeFile(abs, buf);
+    await fs.writeFile(abs, processedBuf);
     const rel = path.relative(PATHS.ROOT, abs);
 
+    // Delete old avatar if exists
     const user = await db.user.findUnique({ where: { id: ctx.user.id } });
     if (user?.avatarPath) {
       try {
@@ -34,9 +49,19 @@ export async function POST(req: NextRequest) {
     }
 
     await db.user.update({ where: { id: ctx.user.id }, data: { avatarPath: rel } });
-    return jsonOk({ ok: true, avatarUrl: `/api/profile/avatar?path=${encodeURIComponent(rel)}` });
+    
+    // Broadcast for real-time UI sync
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("escloud-data-changed", { detail: { type: "profile" } }));
+    }
+    
+    return jsonOk({ 
+      ok: true, 
+      avatarUrl: `/api/profile/avatar?path=${encodeURIComponent(rel)}&t=${Date.now()}` 
+    });
   } catch (e: any) {
-    return jsonError(e?.message ?? "Avatar upload failed", 500);
+    console.error("Avatar upload failed:", e);
+    return jsonError(e?.message ?? "Failed to upload profile photo. Please try again.", 500);
   }
 }
 

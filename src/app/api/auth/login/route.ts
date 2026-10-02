@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { verifyPassword, createSession, detectDevice, getClientIp, checkRateLimit, recordFailedLogin, clearRateLimit, logAdminActivity } from "@/lib/auth";
 import { getRequestContext, jsonError, jsonOk } from "@/lib/api";
 import { cookies } from "next/headers";
+import { isMaintenanceMode } from "@/lib/settings";
 
 export async function POST(req: NextRequest) {
   const ctx = await getRequestContext(req);
@@ -39,6 +40,14 @@ export async function POST(req: NextRequest) {
     if (!ok) {
       recordFailedLogin(rlKey);
       return jsonError("Invalid credentials", 401);
+    }
+
+    // Check maintenance mode — block non-admin users
+    if (user.role !== "admin") {
+      const maintenance = await isMaintenanceMode();
+      if (maintenance) {
+        return jsonError("The system is currently under maintenance. Only administrators can log in at this time.", 503);
+      }
     }
 
     clearRateLimit(rlKey);

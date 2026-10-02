@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestContext, jsonError, jsonOk } from "@/lib/api";
 import { logAdminActivity, getClientIp } from "@/lib/auth";
+import { invalidateSettingsCache } from "@/lib/settings";
 
 // GET /api/admin/settings
 export async function GET(req: NextRequest) {
@@ -31,6 +32,10 @@ export async function PUT(req: NextRequest) {
       await db.systemSetting.create({ data: { key, value: String(value) } });
     }
   }
+  
+  // Invalidate the settings cache so changes take effect immediately
+  invalidateSettingsCache();
+  
   await logAdminActivity({
     adminId: ctx.user.id,
     action: "settings.update",

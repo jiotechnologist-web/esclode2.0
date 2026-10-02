@@ -66,6 +66,12 @@ export function SettingsView() {
   const [phone, setPhone] = useState("");
   const [currentPwd, setCurrentPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
+  // Private content password state
+  const [privatePwdHas, setPrivatePwdHas] = useState(false);
+  const [privateCurrentPwd, setPrivateCurrentPwd] = useState("");
+  const [privateNewPwd, setPrivateNewPwd] = useState("");
+  const [privateConfirmPwd, setPrivateConfirmPwd] = useState("");
+  const [privateSaving, setPrivateSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -104,6 +110,11 @@ export function SettingsView() {
         setEmail(pr.profile?.email ?? "");
         setPhone(pr.profile?.phone ?? "");
         if (pr.profile?.avatarUrl) setAvatarUrl(pr.profile.avatarUrl + "&t=" + Date.now());
+      } catch {}
+      // Load private password status
+      try {
+        const pp = await fetch("/api/user/private-password").then((r) => r.json());
+        setPrivatePwdHas(!!pp.hasPassword);
       } catch {}
     } finally {
       setLoading(false);
@@ -322,6 +333,178 @@ export function SettingsView() {
               <div className="text-xs text-muted-foreground">
                 Contact your administrator to request access changes.
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Private Content Password */}
+          <Card className="shadow-premium">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2"><Shield className="w-4 h-4" /> Private Content Password</CardTitle>
+              <CardDescription className="text-xs">
+                Set a separate password to protect your private content. This password is required when accessing private files.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg border">
+                <div>
+                  <div className="text-sm font-medium">Private Password Status</div>
+                  <div className="text-xs text-muted-foreground">
+                    {privatePwdHas ? "Password is set — your private content is protected" : "No password set — set one to protect your private content"}
+                  </div>
+                </div>
+                <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", privatePwdHas ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600")}>
+                  {privatePwdHas ? "Protected" : "Not Set"}
+                </span>
+              </div>
+
+              {!privatePwdHas ? (
+                /* Set new password */
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>New Private Password</Label>
+                    <Input
+                      type="password"
+                      value={privateNewPwd}
+                      onChange={(e) => setPrivateNewPwd(e.target.value)}
+                      placeholder="At least 4 characters"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Confirm Password</Label>
+                    <Input
+                      type="password"
+                      value={privateConfirmPwd}
+                      onChange={(e) => setPrivateConfirmPwd(e.target.value)}
+                      placeholder="Re-enter the password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      if (privateNewPwd.length < 4) { toast.error("Password must be at least 4 characters"); return; }
+                      if (privateNewPwd !== privateConfirmPwd) { toast.error("Passwords do not match"); return; }
+                      setPrivateSaving(true);
+                      try {
+                        const r = await fetch("/api/user/private-password", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ action: "set", newPassword: privateNewPwd }),
+                        });
+                        const d = await r.json();
+                        if (!r.ok) throw new Error(d.error);
+                        toast.success("Private password set successfully");
+                        setPrivatePwdHas(true);
+                        setPrivateNewPwd("");
+                        setPrivateConfirmPwd("");
+                      } catch (e: any) {
+                        toast.error(e?.message ?? "Failed to set password");
+                      } finally {
+                        setPrivateSaving(false);
+                      }
+                    }}
+                    disabled={privateSaving || !privateNewPwd || !privateConfirmPwd}
+                    className="bg-brand-gradient text-white btn-press"
+                  >
+                    {privateSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4 mr-1.5" />}
+                    Set Private Password
+                  </Button>
+                </div>
+              ) : (
+                /* Change existing password */
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Current Private Password</Label>
+                    <Input
+                      type="password"
+                      value={privateCurrentPwd}
+                      onChange={(e) => setPrivateCurrentPwd(e.target.value)}
+                      placeholder="Enter current private password"
+                      autoComplete="current-password"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>New Private Password</Label>
+                    <Input
+                      type="password"
+                      value={privateNewPwd}
+                      onChange={(e) => setPrivateNewPwd(e.target.value)}
+                      placeholder="At least 4 characters"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Confirm New Password</Label>
+                    <Input
+                      type="password"
+                      value={privateConfirmPwd}
+                      onChange={(e) => setPrivateConfirmPwd(e.target.value)}
+                      placeholder="Re-enter the new password"
+                      autoComplete="new-password"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={async () => {
+                        if (!privateCurrentPwd) { toast.error("Enter your current private password"); return; }
+                        if (privateNewPwd.length < 4) { toast.error("New password must be at least 4 characters"); return; }
+                        if (privateNewPwd !== privateConfirmPwd) { toast.error("Passwords do not match"); return; }
+                        setPrivateSaving(true);
+                        try {
+                          const r = await fetch("/api/user/private-password", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ action: "change", currentPrivatePassword: privateCurrentPwd, newPassword: privateNewPwd }),
+                          });
+                          const d = await r.json();
+                          if (!r.ok) throw new Error(d.error);
+                          toast.success("Private password changed successfully");
+                          setPrivateCurrentPwd("");
+                          setPrivateNewPwd("");
+                          setPrivateConfirmPwd("");
+                        } catch (e: any) {
+                          toast.error(e?.message ?? "Failed to change password");
+                        } finally {
+                          setPrivateSaving(false);
+                        }
+                      }}
+                      disabled={privateSaving || !privateCurrentPwd || !privateNewPwd || !privateConfirmPwd}
+                      className="bg-brand-gradient text-white btn-press"
+                    >
+                      {privateSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-1.5" />}
+                      Change Password
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={async () => {
+                        if (!confirm("Remove your private content password? Your private content will no longer be protected by a separate password.")) return;
+                        setPrivateSaving(true);
+                        try {
+                          const r = await fetch("/api/user/private-password", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ action: "remove" }),
+                          });
+                          if (!r.ok) throw new Error("Failed");
+                          toast.success("Private password removed");
+                          setPrivatePwdHas(false);
+                          setPrivateCurrentPwd("");
+                          setPrivateNewPwd("");
+                          setPrivateConfirmPwd("");
+                        } catch (e: any) {
+                          toast.error(e?.message ?? "Failed");
+                        } finally {
+                          setPrivateSaving(false);
+                        }
+                      }}
+                      disabled={privateSaving}
+                      className="text-rose-500 border-rose-500/30 hover:bg-rose-500/10"
+                    >
+                      Remove Password
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
