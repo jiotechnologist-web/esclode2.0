@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { saveWatchProgress } from "./use-media-list";
 import type { ApiMediaItem } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Props {
   items: ApiMediaItem[];
@@ -1065,7 +1066,13 @@ function StandardPlayer({
 export function VideoPlayerOverlay({ items, startIndex, reelsMode: initialReelsMode = false, onClose }: Props) {
   const videoPrefs = useUIStore((s) => s.videoPrefs);
   const setVideoPrefs = useUIStore((s) => s.setVideoPrefs);
-  const [reelsMode, setReelsMode] = useState(initialReelsMode || videoPrefs?.reelsEnabled || false);
+  // Detect mobile device so we can default to Reels mode on phones (TikTok/Instagram-style
+  // vertical feed is the natural mobile UX). Desktops default to standard mode.
+  // Priority: explicit `initialReelsMode` (e.g. Reels button) > user's saved pref > device default.
+  const isMobile = useIsMobile();
+  const [reelsMode, setReelsMode] = useState(
+    initialReelsMode || videoPrefs?.reelsEnabled || isMobile
+  );
   const [index, setIndex] = useState(startIndex);
   const media = items[index];
 

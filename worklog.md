@@ -267,3 +267,23 @@ Stage Summary:
 - The fix is generic (passes visibility from any media card click → media-viewer-overlay
   → uses it in the list query) so it works for any view (Private page, search results,
   future custom filters, etc.).
+
+---
+Task ID: master-v7
+Agent: Super Z (main)
+Task: Default to Reels mode on phones (mobile devices)
+
+Work Log:
+- Imported the existing `useIsMobile` hook from `src/hooks/use-mobile.ts` (which uses a 768px breakpoint)
+- Updated the `VideoPlayerOverlay` initial state from `initialReelsMode || videoPrefs?.reelsEnabled || false` to `initialReelsMode || videoPrefs?.reelsEnabled || isMobile`
+- Priority order:
+  1. Explicit `initialReelsMode` param (e.g. the "Reels" button on the Videos page passes `reelsMode: true`)
+  2. User's saved preference `videoPrefs.reelsEnabled` (if they explicitly toggled)
+  3. Device default: mobile → reels, desktop → standard
+- Users can still toggle via the Smartphone/Monitor icon at top-right; the toggle is saved to the backend
+- Verified dev server runs without errors, TypeScript check passes
+
+Stage Summary:
+- Phones now default to Reels mode (TikTok/Instagram-style vertical scroll-snap feed) when opening any video
+- Desktops still default to Standard mode
+- User's explicit toggle still works and is persisted to the backend
