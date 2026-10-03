@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { saveWatchProgress } from "./use-media-list";
 import type { ApiMediaItem } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
 
 interface Props {
   items: ApiMediaItem[];
@@ -27,12 +26,89 @@ function formatTime(time: number): string {
 }
 
 /**
- * CustomVideoPlayer — a single video player based on Chirag047's Video-Player
- * design (https://github.com/Chirag047/Video-Player). Vanilla DOM video element
- * with custom controls (timeline, play/pause, skip, volume, speed, PiP, fullscreen).
- *
- * Refactored as a React component, but the structure / styling / behavior matches
- * the original repo.
+ * SeekFeedback — visual ripple shown when double-tap-to-seek is triggered.
+ */
+function SeekFeedback({
+  side,
+  amount,
+  counter,
+}: {
+  side: "left" | "right";
+  amount: number;
+  counter: number;
+}) {
+  return (
+    <motion.div
+      key={counter}
+      initial={{ opacity: 0, scale: 0.7 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      transition={{ duration: 0.18 }}
+      className={`cvp-seek-feedback cvp-seek-feedback-${side}`}
+    >
+      <div className="cvp-seek-feedback-icon">
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="white" strokeWidth="2">
+          {side === "left" ? (
+            <path d="M11 5l-7 7 7 7M4 12h13" strokeLinecap="round" strokeLinejoin="round" />
+          ) : (
+            <path d="M13 5l7 7-7 7M20 12H7" strokeLinecap="round" strokeLinejoin="round" />
+          )}
+        </svg>
+      </div>
+      <div className="cvp-seek-feedback-text">{amount}s</div>
+    </motion.div>
+  );
+}
+
+/**
+ * VolumeBrightnessOverlay — visual indicator for swipe-up volume / brightness control.
+ */
+function VolumeBrightnessOverlay({
+  side,
+  value,
+  visible,
+}: {
+  side: "left" | "right";
+  value: number;
+  visible: boolean;
+}) {
+  if (!visible) return null;
+  const label = side === "left" ? "Brightness" : "Volume";
+  const icon =
+    side === "left" ? (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.5 4.5l2 2M17.5 17.5l2 2M4.5 19.5l2-2M17.5 6.5l2-2" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    ) : (
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="white">
+        <path d="M3 10v4h4l5 5V5L7 10H3z" />
+        <path d="M16 8a5 5 0 0 1 0 8" stroke="white" strokeWidth="1.5" fill="none" />
+      </svg>
+    );
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className={`cvp-vb-overlay cvp-vb-overlay-${side}`}
+    >
+      <div className="cvp-vb-icon">{icon}</div>
+      <div className="cvp-vb-bar">
+        <div className="cvp-vb-bar-fill" style={{ width: `${Math.max(0, Math.min(100, value * 100))}%` }} />
+      </div>
+      <div className="cvp-vb-label">{label}</div>
+    </motion.div>
+  );
+}
+
+/**
+ * CustomVideoPlayer — based on Chirag047 Video-Player design with:
+ *  + YouTube-style double-tap to seek (left = −5s, right = +5s)
+ *  + YouTube-style swipe up on left half = brightness, right half = volume
+ *  + Standard controls: play/pause, skip ±5s, volume, speed menu (2x/1.5x/Normal/0.75/0.5), PiP, fullscreen
+ *  + Timeline hover preview + draggable progress bar
+ *  + Auto-hide controls when playing
  */
 function CustomVideoPlayer({
   src,
@@ -68,7 +144,21 @@ function CustomVideoPlayer({
   const speedOptionsRef = useRef<HTMLUListElement>(null);
   const fullScreenBtnIconRef = useRef<HTMLElement>(null);
   const hideTimerRef = useRef<any>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const seekFeedbacksRef = useRef<{ left: { amount: number; counter: number } | null; right: { amount: number; counter: number } | null }>({
+    left: null,
+    right: null,
+  });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [seekFeedbacks, setSeekFeedbacks] = useState<React.ReactNode[]>([]);
+  const [vbSide, setVbSide] = useState<"left" | "right" | null>(null);
+  const [vbValue, setVbValue] = useState(0.5);
+  const [vbVisible, setVbVisible] = useState(false);
+
+  // Brightness is component-local state; the user can swipe up on the left half to brighten,
+  // down to dim. Stored as 0.2–1.0. Applied to the <video> via CSS filter.
+  const brightnessRef = useRef(1.0);
+  const [brightness, setBrightness] = useState(1.0);
 
   // Auto-hide controls when playing
   const hideControls = useCallback(() => {
@@ -135,6 +225,7 @@ function CustomVideoPlayer({
     video.addEventListener("pause", onPause);
     video.addEventListener("ended", onEndedHandler);
 
+    // Timeline hover preview + click seek + drag
     const onTimelineMouseMove = (e: MouseEvent) => {
       const timelineWidth = timeline.clientWidth;
       let offsetX = e.offsetX;
@@ -173,6 +264,7 @@ function CustomVideoPlayer({
     timeline.addEventListener("mousedown", onTimelineMousedown);
     document.addEventListener("mouseup", onTimelineMouseup);
 
+    // Show controls on mousemove
     const onContainerMousemove = () => showControls();
     container.addEventListener("mousemove", onContainerMousemove);
 
@@ -262,7 +354,293 @@ function CustomVideoPlayer({
     };
   }, [src, onProgress, onEnded, hideControls, showControls]);
 
-  // Controls handlers (defined as React event handlers using refs)
+  // When src changes (new video), explicitly call load() to ensure the video reloads.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    v.load();
+    if (active && autoPlay) {
+      v.play().catch(() => {});
+    }
+  }, [src]);
+
+  // Autoplay when `active` becomes true
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (active && autoPlay) {
+      v.play().catch(() => {});
+    } else if (!active) {
+      v.pause();
+    }
+  }, [active, autoPlay]);
+
+  // Apply brightness to the video element
+  useEffect(() => {
+    const v = videoRef.current;
+    if (v) v.style.filter = `brightness(${brightness})`;
+  }, [brightness]);
+
+  // ---------- YouTube-style double-tap to seek ----------
+  // On the desktop: double-click on left half = −5s, right half = +5s.
+  // On mobile: double-tap (touchstart) on left/right half = same.
+  // Each successive double-tap adds 5s (10s, 15s, 20s...) and shows stacked feedback.
+  const lastTapRef = useRef<{ left: number; right: number }>({ left: 0, right: 0 });
+  const tapStreakRef = useRef<{ left: number; right: number; timeout: any }>({
+    left: 0,
+    right: 0,
+    timeout: null as any,
+  });
+
+  const triggerSeekFeedback = useCallback((side: "left" | "right", amount: number) => {
+    setSeekFeedbacks((prev) => {
+      const next = [...prev];
+      const id = `${side}-${Date.now()}-${Math.random()}`;
+      next.push(
+        <div key={id} className="cvp-feedback-wrap">
+          <SeekFeedback side={side} amount={amount} counter={next.length} />
+        </div>
+      );
+      // Auto-remove after 700ms
+      setTimeout(() => {
+        setSeekFeedbacks((p) => p.filter((n) => (n as any).key !== id));
+      }, 700);
+      return next;
+    });
+  }, []);
+
+  const handleDoubleTapSeek = useCallback(
+    (side: "left" | "right") => {
+      const v = videoRef.current;
+      if (!v) return;
+      const now = Date.now();
+      const delta = now - lastTapRef.current[side];
+      if (delta < 350) {
+        // Within double-tap window — increment streak
+        tapStreakRef.current[side] += 1;
+        if (tapStreakRef.current.timeout) clearTimeout(tapStreakRef.current.timeout);
+        tapStreakRef.current.timeout = setTimeout(() => {
+          tapStreakRef.current[side] = 0;
+        }, 800);
+      } else {
+        tapStreakRef.current[side] = 1;
+        if (tapStreakRef.current.timeout) clearTimeout(tapStreakRef.current.timeout);
+        tapStreakRef.current.timeout = setTimeout(() => {
+          tapStreakRef.current[side] = 0;
+        }, 800);
+      }
+      lastTapRef.current[side] = now;
+      const streak = tapStreakRef.current[side];
+      const amount = 5 * streak; // 5s, 10s, 15s, ...
+      if (side === "left") {
+        v.currentTime = Math.max(0, v.currentTime - 5);
+        // For stacked display, show the cumulative amount
+        triggerSeekFeedback("left", amount);
+      } else {
+        v.currentTime = Math.min(v.duration || 0, v.currentTime + 5);
+        triggerSeekFeedback("right", amount);
+      }
+      // Show controls
+      showControls();
+    },
+    [showControls, triggerSeekFeedback]
+  );
+
+  // Click on the video area: detect left/right half. Single click toggles play.
+  // Double-click triggers seek. We use onClick + a custom double-tap detection.
+  const onVideoAreaClick = (e: React.MouseEvent) => {
+    // Detect if this is a double-click by time delta from last click
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const half = x < rect.width / 2 ? "left" : "right";
+    handleDoubleTapSeekWithPlayToggle(half);
+  };
+
+  const lastSingleClickRef = useRef(0);
+  const pendingSingleClickTimerRef = useRef<any>(null);
+  const handleDoubleTapSeekWithPlayToggle = (side: "left" | "right") => {
+    const now = Date.now();
+    const delta = now - lastSingleClickRef.current;
+    if (delta < 280) {
+      // Double-click — cancel the pending single-click play toggle and do seek
+      if (pendingSingleClickTimerRef.current) {
+        clearTimeout(pendingSingleClickTimerRef.current);
+        pendingSingleClickTimerRef.current = null;
+      }
+      handleDoubleTapSeek(side);
+      lastSingleClickRef.current = 0;
+    } else {
+      // Pending single click — wait to see if it's a double-click
+      lastSingleClickRef.current = now;
+      pendingSingleClickTimerRef.current = setTimeout(() => {
+        togglePlay();
+        pendingSingleClickTimerRef.current = null;
+      }, 280);
+    }
+  };
+
+  // Touch handling for mobile double-tap-to-seek
+  const lastTouchRef = useRef<{ left: number; right: number }>({ left: 0, right: 0 });
+  const touchStreakRef = useRef<{ left: number; right: number; timeout: any }>({
+    left: 0,
+    right: 0,
+    timeout: null as any,
+  });
+  const onTouchEndArea = (e: React.TouchEvent) => {
+    // 1. End volume/brightness swipe (if active)
+    touchStartYRef.current = null;
+    if (vbActiveRef.current) {
+      // Hide the overlay after a short delay
+      setTimeout(() => setVbVisible(false), 300);
+      vbActiveRef.current = null;
+      setVbSide(null);
+    }
+    // 2. Handle double-tap-to-seek (only if a swipe wasn't engaged)
+    if (e.changedTouches.length === 0) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const x = e.changedTouches[0].clientX - rect.left;
+    const side = x < rect.width / 2 ? "left" : "right";
+    const now = Date.now();
+    const delta = now - lastTouchRef.current[side];
+    if (delta < 300) {
+      // Double-tap
+      touchStreakRef.current[side] += 1;
+      if (touchStreakRef.current.timeout) clearTimeout(touchStreakRef.current.timeout);
+      touchStreakRef.current.timeout = setTimeout(() => {
+        touchStreakRef.current[side] = 0;
+      }, 800);
+      const streak = touchStreakRef.current[side];
+      const amount = 5 * streak;
+      const v = videoRef.current;
+      if (v) {
+        if (side === "left") {
+          v.currentTime = Math.max(0, v.currentTime - 5);
+          triggerSeekFeedback("left", amount);
+        } else {
+          v.currentTime = Math.min(v.duration || 0, v.currentTime + 5);
+          triggerSeekFeedback("right", amount);
+        }
+      }
+      lastTouchRef.current[side] = now;
+    } else {
+      // Single tap — toggle play after a short delay (in case double-tap is coming)
+      touchStreakRef.current[side] = 0;
+      lastTouchRef.current[side] = now;
+      if (touchStreakRef.current.timeout) clearTimeout(touchStreakRef.current.timeout);
+      touchStreakRef.current.timeout = setTimeout(() => {
+        // Single tap → toggle play
+        togglePlay();
+      }, 300);
+    }
+  };
+
+  // ---------- YouTube-style swipe-up volume (right) / brightness (left) ----------
+  // On touch: track start Y. On touchmove, compute delta Y. If the swipe started on the
+  // left half of the video, adjust brightness. If on the right half, adjust volume.
+  // Show an overlay with a vertical bar.
+  const touchStartYRef = useRef<{ y: number; x: number; time: number } | null>(null);
+  const vbActiveRef = useRef<"left" | "right" | null>(null);
+  const onTouchStartArea = (e: React.TouchEvent) => {
+    if (e.touches.length === 0) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const x = e.touches[0].clientX - rect.left;
+    const y = e.touches[0].clientY - rect.top;
+    touchStartYRef.current = { y, x, time: Date.now() };
+  };
+  const onTouchMoveArea = (e: React.TouchEvent) => {
+    if (!touchStartYRef.current || e.touches.length === 0) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const startX = touchStartYRef.current.x;
+    const startY = touchStartYRef.current.y;
+    const curY = e.touches[0].clientY - rect.top;
+    const dy = startY - curY; // up = positive
+    // Need to move at least 12px to engage volume/brightness mode
+    if (Math.abs(dy) < 12 && !vbActiveRef.current) return;
+    if (!vbActiveRef.current) {
+      // Determine side based on startX
+      const side = startX < rect.width / 2 ? "left" : "right";
+      vbActiveRef.current = side;
+      setVbSide(side);
+      setVbVisible(true);
+    }
+    // Vertical swipe distance → value (0..1). 200px = full range.
+    const range = rect.height * 0.7;
+    const delta = Math.max(-range, Math.min(range, dy));
+    const value = delta / range; // -1..1
+    // Add to current value (0..1)
+    if (vbActiveRef.current === "left") {
+      const base = brightnessRef.current;
+      const newValue = Math.max(0.2, Math.min(1, base + value * 0.05));
+      // Apply incrementally
+      const incr = (dy / range) * 0.05;
+      const final = Math.max(0.2, Math.min(1, brightnessRef.current + incr));
+      brightnessRef.current = final;
+      setBrightness(final);
+      setVbValue(final);
+    } else {
+      const v = videoRef.current;
+      if (v) {
+        const incr = (dy / range) * 0.05;
+        const final = Math.max(0, Math.min(1, v.volume + incr));
+        v.volume = final;
+        if (volumeSliderRef.current) volumeSliderRef.current.value = String(final);
+        setVbValue(final);
+        // Update volume icon
+        if (volumeBtnIconRef.current) {
+          if (final === 0) {
+            volumeBtnIconRef.current.classList.remove("fa-volume-high");
+            volumeBtnIconRef.current.classList.add("fa-volume-xmark");
+          } else {
+            volumeBtnIconRef.current.classList.remove("fa-volume-xmark");
+            volumeBtnIconRef.current.classList.add("fa-volume-high");
+          }
+        }
+      }
+    }
+    // Reset startY so each frame is incremental
+    touchStartYRef.current.y = curY;
+  };
+
+  // ---------- Mouse wheel for desktop volume/brightness ----------
+  // Hover the left half → wheel adjusts brightness. Right half → volume.
+  const onMouseWheelArea = (e: React.WheelEvent) => {
+    const container = containerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const side = x < rect.width / 2 ? "left" : "right";
+    const delta = -e.deltaY * 0.001; // up = +
+    if (side === "left") {
+      const final = Math.max(0.2, Math.min(1, brightnessRef.current + delta));
+      brightnessRef.current = final;
+      setBrightness(final);
+      setVbSide("left");
+      setVbValue(final);
+      setVbVisible(true);
+      setTimeout(() => setVbVisible(false), 700);
+    } else {
+      const v = videoRef.current;
+      if (v) {
+        const final = Math.max(0, Math.min(1, v.volume + delta));
+        v.volume = final;
+        if (volumeSliderRef.current) volumeSliderRef.current.value = String(final);
+        setVbSide("right");
+        setVbValue(final);
+        setVbVisible(true);
+        setTimeout(() => setVbVisible(false), 700);
+      }
+    }
+  };
+
+  // Controls handlers
   const togglePlay = () => {
     const v = videoRef.current;
     if (!v) return;
@@ -303,20 +681,16 @@ function CustomVideoPlayer({
     }
   };
 
-  // Autoplay when `active` becomes true
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (active && autoPlay) {
-      // Try to play; if blocked by browser, stay paused (user gesture needed)
-      v.play().catch(() => {});
-    } else if (!active) {
-      v.pause();
-    }
-  }, [active, autoPlay]);
-
   return (
-    <div className="cvp-container show-controls" ref={containerRef}>
+    <div
+      className="cvp-container show-controls"
+      ref={containerRef}
+      onClick={onVideoAreaClick}
+      onTouchStart={onTouchStartArea}
+      onTouchMove={onTouchMoveArea}
+      onTouchEnd={onTouchEndArea}
+      onWheel={onMouseWheelArea}
+    >
       <div className="cvp-wrapper">
         <div className="cvp-video-timeline" ref={timelineRef}>
           <div className="cvp-progress-area">
@@ -324,7 +698,7 @@ function CustomVideoPlayer({
             <div className="cvp-progress-bar" ref={progressBarRef} />
           </div>
         </div>
-        <ul className="cvp-video-controls">
+        <ul className="cvp-video-controls" onClick={(e) => e.stopPropagation()}>
           <li className="cvp-options left">
             <button className="cvp-volume" ref={volumeBtnRef} title="Mute / Unmute">
               <i ref={volumeBtnIconRef} className="fa-solid fa-volume-high" />
@@ -378,14 +752,22 @@ function CustomVideoPlayer({
         crossOrigin="anonymous"
         className="cvp-video"
       />
+
+      {/* Double-tap-to-seek feedback zones (left/right halves) */}
+      <div className="cvp-feedback-container">
+        {seekFeedbacks}
+      </div>
+
+      {/* Volume / Brightness overlay */}
+      {vbSide && <VolumeBrightnessOverlay side={vbSide} value={vbValue} visible={vbVisible} />}
     </div>
   );
 }
 
 /**
- * ReelsFeed — vertical scroll-snap feed (TikTok/Instagram style).
- * Each video occupies the full viewport. IntersectionObserver autoplays the
- * active video and pauses the others. Next video is preloaded.
+ * ReelsFeed — TikTok / Instagram style vertical scroll-snap feed.
+ * Each video occupies the full viewport (100dvh). Vertical swipe/scroll
+ * snaps to the next/previous video. Active video autoplays, others pause.
  */
 function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; startIndex: number; onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -394,7 +776,7 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
   const [showChrome, setShowChrome] = useState(true);
   const hideChromeTimer = useRef<any>(null);
 
-  // Initial scroll
+  // Initial scroll to startIndex
   useEffect(() => {
     const el = itemRefs.current[startIndex];
     if (el) el.scrollIntoView({ behavior: "auto", block: "start" });
@@ -429,11 +811,14 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
     return () => window.removeEventListener("keydown", onKey);
   }, [activeIndex, onClose]);
 
-  const scrollToIndex = useCallback((i: number) => {
-    const clamped = Math.max(0, Math.min(items.length - 1, i));
-    const el = itemRefs.current[clamped];
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [items.length]);
+  const scrollToIndex = useCallback(
+    (i: number) => {
+      const clamped = Math.max(0, Math.min(items.length - 1, i));
+      const el = itemRefs.current[clamped];
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    [items.length]
+  );
 
   const pokeChrome = () => {
     setShowChrome(true);
@@ -442,28 +827,31 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
   };
   useEffect(() => {
     pokeChrome();
-    return () => { if (hideChromeTimer.current) clearTimeout(hideChromeTimer.current); };
+    return () => {
+      if (hideChromeTimer.current) clearTimeout(hideChromeTimer.current);
+    };
   }, []);
 
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-50 bg-black overflow-y-auto no-scrollbar reels-feed"
+      className="cvp-reels-feed"
       onMouseMove={pokeChrome}
       onTouchStart={pokeChrome}
     >
+      {/* Top chrome bar */}
       <AnimatePresence>
         {showChrome && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-0 inset-x-0 z-50 p-3 pt-safe bg-gradient-to-b from-black/70 to-transparent flex items-center justify-between pointer-events-none"
+            className="cvp-reels-topbar"
           >
-            <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10 pointer-events-auto">
+            <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10">
               <X className="w-6 h-6" />
             </Button>
-            <div className="text-white text-xs font-medium truncate max-w-[60%] pointer-events-auto">
+            <div className="cvp-reels-title">
               {items[activeIndex]?.name} · {activeIndex + 1}/{items.length}
             </div>
             <div className="w-10" />
@@ -471,6 +859,7 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
         )}
       </AnimatePresence>
 
+      {/* Up/Down navigation arrows (desktop) */}
       <AnimatePresence>
         {showChrome && (
           <>
@@ -478,9 +867,10 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              onClick={() => scrollToIndex(activeIndex + 1)}
+              onClick={(e) => { e.stopPropagation(); scrollToIndex(activeIndex + 1); }}
               disabled={activeIndex >= items.length - 1}
-              className="fixed right-4 top-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 backdrop-blur flex items-center justify-center text-white"
+              className="cvp-reels-nav cvp-reels-nav-down"
+              title="Next video"
             >
               <ChevronDown className="w-5 h-5" />
             </motion.button>
@@ -488,9 +878,10 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: 20 }}
-              onClick={() => scrollToIndex(activeIndex - 1)}
+              onClick={(e) => { e.stopPropagation(); scrollToIndex(activeIndex - 1); }}
               disabled={activeIndex <= 0}
-              className="fixed left-4 top-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 backdrop-blur flex items-center justify-center text-white"
+              className="cvp-reels-nav cvp-reels-nav-up"
+              title="Previous video"
             >
               <ChevronUp className="w-5 h-5" />
             </motion.button>
@@ -498,6 +889,7 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
         )}
       </AnimatePresence>
 
+      {/* Reels items — each one is 100dvh and snaps to top */}
       {items.map((m, i) => {
         const distance = Math.abs(i - activeIndex);
         const shouldPreload = distance <= 1;
@@ -506,8 +898,7 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
             key={m.id}
             data-index={i}
             ref={(el) => { itemRefs.current[i] = el; }}
-            className="reels-item w-full flex items-center justify-center bg-black relative"
-            style={{ height: "100dvh" }}
+            className="cvp-reels-item"
           >
             <ReelsVideoItem
               media={m}
@@ -534,41 +925,59 @@ function ReelsVideoItem({
   const poster = media.thumbnailUrl ?? undefined;
   const lastSavedRef = useRef(0);
 
-  const onProgress = useCallback((currentTime: number, duration: number) => {
-    if (Math.abs(currentTime - lastSavedRef.current) >= 5) {
-      lastSavedRef.current = currentTime;
-      saveWatchProgress(media.id, currentTime, duration || undefined);
-    }
-  }, [media.id]);
+  const onProgress = useCallback(
+    (currentTime: number, duration: number) => {
+      if (Math.abs(currentTime - lastSavedRef.current) >= 5) {
+        lastSavedRef.current = currentTime;
+        saveWatchProgress(media.id, currentTime, duration || undefined);
+      }
+    },
+    [media.id]
+  );
 
   return (
-    <div className="w-full h-full flex items-center justify-center">
-      <div className="relative w-full h-full max-w-[100vw] max-h-[100dvh] flex items-center justify-center cvp-reels-item">
-        <CustomVideoPlayer
-          src={src}
-          poster={poster}
-          title={media.name}
-          autoPlay={active}
-          preload={preload}
-          active={active}
-          onProgress={onProgress}
-        />
-      </div>
+    <div className="cvp-reels-item-inner">
+      <CustomVideoPlayer
+        src={src}
+        poster={poster}
+        title={media.name}
+        autoPlay={active}
+        preload={preload}
+        active={active}
+        onProgress={onProgress}
+      />
     </div>
   );
 }
 
-function StandardPlayer({ media, onClose }: { media: ApiMediaItem; onClose: () => void }) {
+function StandardPlayer({
+  media,
+  onClose,
+  onPrev,
+  onNext,
+  index,
+  total,
+}: {
+  media: ApiMediaItem;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+  index: number;
+  total: number;
+}) {
   const src = `/api/media/${media.id}/stream`;
   const poster = media.thumbnailUrl ?? undefined;
   const lastSavedRef = useRef(0);
 
-  const onProgress = useCallback((currentTime: number, duration: number) => {
-    if (Math.abs(currentTime - lastSavedRef.current) >= 5) {
-      lastSavedRef.current = currentTime;
-      saveWatchProgress(media.id, currentTime, duration || undefined);
-    }
-  }, [media.id]);
+  const onProgress = useCallback(
+    (currentTime: number, duration: number) => {
+      if (Math.abs(currentTime - lastSavedRef.current) >= 5) {
+        lastSavedRef.current = currentTime;
+        saveWatchProgress(media.id, currentTime, duration || undefined);
+      }
+    },
+    [media.id]
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
@@ -579,7 +988,8 @@ function StandardPlayer({ media, onClose }: { media: ApiMediaItem; onClose: () =
         <div className="text-white text-sm font-medium truncate flex-1">{media.name}</div>
       </div>
       <div className="flex-1 flex items-center justify-center">
-        <div className="cvp-standard-wrap">
+        {/* key forces remount when media.id changes so the new video reloads */}
+        <div className="cvp-standard-wrap" key={media.id}>
           <CustomVideoPlayer
             src={src}
             poster={poster}
@@ -590,6 +1000,28 @@ function StandardPlayer({ media, onClose }: { media: ApiMediaItem; onClose: () =
             onProgress={onProgress}
           />
         </div>
+      </div>
+      {/* Bottom navigation bar (prev / index / next) */}
+      <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-black/50 backdrop-blur px-3 py-1.5 rounded-full">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={index <= 0}
+          onClick={onPrev}
+          className="text-white hover:bg-white/10 disabled:opacity-30 h-8 px-2"
+        >
+          <ChevronUp className="w-4 h-4" />
+        </Button>
+        <span className="text-white text-xs">{index + 1} / {total}</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={index >= total - 1}
+          onClick={onNext}
+          className="text-white hover:bg-white/10 disabled:opacity-30 h-8 px-2"
+        >
+          <ChevronDown className="w-4 h-4" />
+        </Button>
       </div>
     </div>
   );
@@ -615,6 +1047,13 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode: initialReelsM
     }).catch(() => {});
     toast.success(newVal ? "Reels mode enabled" : "Standard mode enabled");
   };
+
+  const goPrev = useCallback(() => {
+    setIndex((i) => Math.max(0, i - 1));
+  }, []);
+  const goNext = useCallback(() => {
+    setIndex((i) => Math.min(items.length - 1, i + 1));
+  }, [items.length]);
 
   if (!media) {
     return (
@@ -644,7 +1083,14 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode: initialReelsM
 
   return (
     <div className="fixed inset-0 z-50 bg-black">
-      <StandardPlayer media={media} onClose={onClose} />
+      <StandardPlayer
+        media={media}
+        onClose={onClose}
+        onPrev={goPrev}
+        onNext={goNext}
+        index={index}
+        total={items.length}
+      />
       <Button
         variant="ghost"
         size="icon"
@@ -654,27 +1100,6 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode: initialReelsM
       >
         <Smartphone className="w-5 h-5" />
       </Button>
-      <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-black/50 backdrop-blur px-3 py-1.5 rounded-full">
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={index <= 0}
-          onClick={() => setIndex((i) => Math.max(0, i - 1))}
-          className="text-white hover:bg-white/10 disabled:opacity-30 h-8 px-2"
-        >
-          <ChevronUp className="w-4 h-4" />
-        </Button>
-        <span className="text-white text-xs">{index + 1} / {items.length}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={index >= items.length - 1}
-          onClick={() => setIndex((i) => Math.min(items.length - 1, i + 1))}
-          className="text-white hover:bg-white/10 disabled:opacity-30 h-8 px-2"
-        >
-          <ChevronDown className="w-4 h-4" />
-        </Button>
-      </div>
     </div>
   );
 }

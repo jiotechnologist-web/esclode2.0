@@ -1,0 +1,681 @@
+     1→"use client";
+     2→import { useEffect, useRef, useState, useCallback } from "react";
+     3→import { useUIStore } from "@/stores/ui";
+     4→import { Button } from "@/components/ui/button";
+     5→import { X, ChevronUp, ChevronDown, Smartphone, Monitor } from "lucide-react";
+     6→import { toast } from "sonner";
+     7→import { saveWatchProgress } from "./use-media-list";
+     8→import type { ApiMediaItem } from "@/lib/types";
+     9→import { motion, AnimatePresence } from "framer-motion";
+    10→import { cn } from "@/lib/utils";
+    11→
+    12→interface Props {
+    13→  items: ApiMediaItem[];
+    14→  startIndex: number;
+    15→  reelsMode?: boolean;
+    16→  onClose: () => void;
+    17→}
+    18→
+    19→function formatTime(time: number): string {
+    20→  if (!isFinite(time) || time < 0) return "00:00";
+    21→  let seconds = Math.floor(time % 60);
+    22→  let minutes = Math.floor(time / 60) % 60;
+    23→  let hours = Math.floor(time / 3600);
+    24→  const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+    25→  if (hours === 0) return `${pad(minutes)}:${pad(seconds)}`;
+    26→  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+    27→}
+    28→
+    29→/**
+    30→ * CustomVideoPlayer — a single video player based on Chirag047's Video-Player
+    31→ * design (https://github.com/Chirag047/Video-Player). Vanilla DOM video element
+    32→ * with custom controls (timeline, play/pause, skip, volume, speed, PiP, fullscreen).
+    33→ *
+    34→ * Refactored as a React component, but the structure / styling / behavior matches
+    35→ * the original repo.
+    36→ */
+    37→function CustomVideoPlayer({
+    38→  src,
+    39→  poster,
+    40→  title,
+    41→  autoPlay = false,
+    42→  preload = "metadata",
+    43→  onProgress,
+    44→  onEnded,
+    45→  active,
+    46→}: {
+    47→  src: string;
+    48→  poster?: string;
+    49→  title?: string;
+    50→  autoPlay?: boolean;
+    51→  preload?: "auto" | "metadata" | "none";
+    52→  onProgress?: (currentTime: number, duration: number) => void;
+    53→  onEnded?: () => void;
+    54→  active?: boolean;
+    55→}) {
+    56→  const containerRef = useRef<HTMLDivElement>(null);
+    57→  const videoRef = useRef<HTMLVideoElement>(null);
+    58→  const timelineRef = useRef<HTMLDivElement>(null);
+    59→  const progressBarRef = useRef<HTMLDivElement>(null);
+    60→  const progressTimeRef = useRef<HTMLSpanElement>(null);
+    61→  const currentTimeRef = useRef<HTMLParagraphElement>(null);
+    62→  const videoDurationRef = useRef<HTMLParagraphElement>(null);
+    63→  const volumeBtnRef = useRef<HTMLButtonElement>(null);
+    64→  const volumeBtnIconRef = useRef<HTMLElement>(null);
+    65→  const volumeSliderRef = useRef<HTMLInputElement>(null);
+    66→  const playPauseBtnIconRef = useRef<HTMLElement>(null);
+    67→  const speedBtnRef = useRef<HTMLButtonElement>(null);
+    68→  const speedOptionsRef = useRef<HTMLUListElement>(null);
+    69→  const fullScreenBtnIconRef = useRef<HTMLElement>(null);
+    70→  const hideTimerRef = useRef<any>(null);
+    71→  const [isFullscreen, setIsFullscreen] = useState(false);
+    72→
+    73→  // Auto-hide controls when playing
+    74→  const hideControls = useCallback(() => {
+    75→    const v = videoRef.current;
+    76→    if (!v || v.paused) return;
+    77→    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    78→    hideTimerRef.current = setTimeout(() => {
+    79→      containerRef.current?.classList.remove("show-controls");
+    80→    }, 3000);
+    81→  }, []);
+    82→
+    83→  const showControls = useCallback(() => {
+    84→    containerRef.current?.classList.add("show-controls");
+    85→    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    86→    hideControls();
+    87→  }, [hideControls]);
+    88→
+    89→  // Wire up events on mount
+    90→  useEffect(() => {
+    91→    const container = containerRef.current;
+    92→    const video = videoRef.current;
+    93→    const timeline = timelineRef.current;
+    94→    const progressBar = progressBarRef.current;
+    95→    const progressTime = progressTimeRef.current;
+    96→    const currentTimeEl = currentTimeRef.current;
+    97→    const videoDurationEl = videoDurationRef.current;
+    98→    const volumeBtnIcon = volumeBtnIconRef.current;
+    99→    const volumeSlider = volumeSliderRef.current;
+   100→    const playPauseIcon = playPauseBtnIconRef.current;
+   101→    const speedOptions = speedOptionsRef.current;
+   102→    const fullScreenIcon = fullScreenBtnIconRef.current;
+   103→    if (!container || !video || !timeline || !progressBar || !volumeBtnIcon || !volumeSlider || !playPauseIcon || !speedOptions || !fullScreenIcon) return;
+   104→
+   105→    const onTimeUpdate = () => {
+   106→      const { currentTime, duration } = video;
+   107→      if (duration > 0) {
+   108→        const percent = (currentTime / duration) * 100;
+   109→        progressBar.style.width = `${percent}%`;
+   110→      }
+   111→      if (currentTimeEl) currentTimeEl.innerText = formatTime(currentTime);
+   112→      onProgress?.(currentTime, duration);
+   113→    };
+   114→
+   115→    const onLoadedData = () => {
+   116→      if (videoDurationEl) videoDurationEl.innerText = formatTime(video.duration);
+   117→    };
+   118→
+   119→    const onPlay = () => {
+   120→      playPauseIcon.classList.remove("fa-play");
+   121→      playPauseIcon.classList.add("fa-pause");
+   122→      hideControls();
+   123→    };
+   124→    const onPause = () => {
+   125→      playPauseIcon.classList.remove("fa-pause");
+   126→      playPauseIcon.classList.add("fa-play");
+   127→      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+   128→      container.classList.add("show-controls");
+   129→    };
+   130→    const onEndedHandler = () => { onEnded?.(); };
+   131→
+   132→    video.addEventListener("timeupdate", onTimeUpdate);
+   133→    video.addEventListener("loadeddata", onLoadedData);
+   134→    video.addEventListener("play", onPlay);
+   135→    video.addEventListener("pause", onPause);
+   136→    video.addEventListener("ended", onEndedHandler);
+   137→
+   138→    const onTimelineMouseMove = (e: MouseEvent) => {
+   139→      const timelineWidth = timeline.clientWidth;
+   140→      let offsetX = e.offsetX;
+   141→      const percent = Math.floor((offsetX / timelineWidth) * (video.duration || 0));
+   142→      if (progressTime) {
+   143→        offsetX = offsetX < 20 ? 20 : offsetX > timelineWidth - 20 ? timelineWidth - 20 : offsetX;
+   144→        progressTime.style.left = `${offsetX}px`;
+   145→        progressTime.innerText = formatTime(percent);
+   146→      }
+   147→    };
+   148→    const onTimelineClick = (e: MouseEvent) => {
+   149→      const timelineWidth = timeline.clientWidth;
+   150→      video.currentTime = (e.offsetX / timelineWidth) * (video.duration || 0);
+   151→    };
+   152→    let isDragging = false;
+   153→    const onTimelineMousedown = () => {
+   154→      isDragging = true;
+   155→      timeline.addEventListener("mousemove", onTimelineDrag);
+   156→    };
+   157→    const onTimelineDrag = (e: MouseEvent) => {
+   158→      if (!isDragging) return;
+   159→      const timelineWidth = timeline.clientWidth;
+   160→      let x = e.offsetX;
+   161→      if (x < 0) x = 0;
+   162→      if (x > timelineWidth) x = timelineWidth;
+   163→      progressBar.style.width = `${x}px`;
+   164→      video.currentTime = (x / timelineWidth) * (video.duration || 0);
+   165→      if (currentTimeEl) currentTimeEl.innerText = formatTime(video.currentTime);
+   166→    };
+   167→    const onTimelineMouseup = () => {
+   168→      isDragging = false;
+   169→      timeline.removeEventListener("mousemove", onTimelineDrag);
+   170→    };
+   171→    timeline.addEventListener("mousemove", onTimelineMouseMove);
+   172→    timeline.addEventListener("click", onTimelineClick);
+   173→    timeline.addEventListener("mousedown", onTimelineMousedown);
+   174→    document.addEventListener("mouseup", onTimelineMouseup);
+   175→
+   176→    const onContainerMousemove = () => showControls();
+   177→    container.addEventListener("mousemove", onContainerMousemove);
+   178→
+   179→    // Volume
+   180→    const onVolumeBtnClick = () => {
+   181→      if (!volumeBtnIcon.classList.contains("fa-volume-high")) {
+   182→        video.volume = 0.5;
+   183→        volumeBtnIcon.classList.remove("fa-volume-xmark");
+   184→        volumeBtnIcon.classList.add("fa-volume-high");
+   185→      } else {
+   186→        video.volume = 0.0;
+   187→        volumeBtnIcon.classList.remove("fa-volume-high");
+   188→        volumeBtnIcon.classList.add("fa-volume-xmark");
+   189→      }
+   190→      if (volumeSlider) volumeSlider.value = String(video.volume);
+   191→    };
+   192→    volumeBtnRef.current?.addEventListener("click", onVolumeBtnClick);
+   193→
+   194→    const onVolumeInput = (e: Event) => {
+   195→      const v = Number((e.target as HTMLInputElement).value);
+   196→      video.volume = v;
+   197→      if (v === 0) {
+   198→        volumeBtnIcon.classList.remove("fa-volume-high");
+   199→        volumeBtnIcon.classList.add("fa-volume-xmark");
+   200→      } else {
+   201→        volumeBtnIcon.classList.remove("fa-volume-xmark");
+   202→        volumeBtnIcon.classList.add("fa-volume-high");
+   203→      }
+   204→    };
+   205→    volumeSlider?.addEventListener("input", onVolumeInput);
+   206→
+   207→    // Speed
+   208→    const onSpeedOptionClick = (e: Event) => {
+   209→      const li = e.target as HTMLLIElement;
+   210→      const speed = li.dataset.speed;
+   211→      if (!speed) return;
+   212→      video.playbackRate = Number(speed);
+   213→      const active = speedOptions.querySelector(".active");
+   214→      if (active) active.classList.remove("active");
+   215→      li.classList.add("active");
+   216→    };
+   217→    speedOptions.querySelectorAll("li").forEach((li) => li.addEventListener("click", onSpeedOptionClick));
+   218→
+   219→    const onDocClick = (e: MouseEvent) => {
+   220→      const target = e.target as HTMLElement;
+   221→      if (target.tagName !== "SPAN" || !target.classList.contains("material-symbols-rounded")) {
+   222→        speedOptions.classList.remove("show");
+   223→      }
+   224→    };
+   225→    document.addEventListener("click", onDocClick);
+   226→
+   227→    const onSpeedBtnClick = () => speedOptions.classList.toggle("show");
+   228→    speedBtnRef.current?.addEventListener("click", onSpeedBtnClick);
+   229→
+   230→    // Fullscreen
+   231→    const onFullscreenChange = () => {
+   232→      const fsEl = document.fullscreenElement;
+   233→      setIsFullscreen(!!fsEl);
+   234→      if (fsEl) {
+   235→        fullScreenIcon.classList.remove("fa-expand");
+   236→        fullScreenIcon.classList.add("fa-compress");
+   237→      } else {
+   238→        fullScreenIcon.classList.remove("fa-compress");
+   239→        fullScreenIcon.classList.add("fa-expand");
+   240→      }
+   241→    };
+   242→    document.addEventListener("fullscreenchange", onFullscreenChange);
+   243→
+   244→    return () => {
+   245→      video.removeEventListener("timeupdate", onTimeUpdate);
+   246→      video.removeEventListener("loadeddata", onLoadedData);
+   247→      video.removeEventListener("play", onPlay);
+   248→      video.removeEventListener("pause", onPause);
+   249→      video.removeEventListener("ended", onEndedHandler);
+   250→      timeline.removeEventListener("mousemove", onTimelineMouseMove);
+   251→      timeline.removeEventListener("click", onTimelineClick);
+   252→      timeline.removeEventListener("mousedown", onTimelineMousedown);
+   253→      document.removeEventListener("mouseup", onTimelineMouseup);
+   254→      container.removeEventListener("mousemove", onContainerMousemove);
+   255→      volumeBtnRef.current?.removeEventListener("click", onVolumeBtnClick);
+   256→      volumeSlider?.removeEventListener("input", onVolumeInput);
+   257→      speedOptions.querySelectorAll("li").forEach((li) => li.removeEventListener("click", onSpeedOptionClick));
+   258→      document.removeEventListener("click", onDocClick);
+   259→      speedBtnRef.current?.removeEventListener("click", onSpeedBtnClick);
+   260→      document.removeEventListener("fullscreenchange", onFullscreenChange);
+   261→      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+   262→    };
+   263→  }, [src, onProgress, onEnded, hideControls, showControls]);
+   264→
+   265→  // Controls handlers (defined as React event handlers using refs)
+   266→  const togglePlay = () => {
+   267→    const v = videoRef.current;
+   268→    if (!v) return;
+   269→    if (v.paused) v.play().catch(() => {});
+   270→    else v.pause();
+   271→  };
+   272→  const skipBackward = () => {
+   273→    const v = videoRef.current;
+   274→    if (v) v.currentTime -= 5;
+   275→  };
+   276→  const skipForward = () => {
+   277→    const v = videoRef.current;
+   278→    if (v) v.currentTime += 5;
+   279→  };
+   280→  const toggleFullscreen = () => {
+   281→    const container = containerRef.current;
+   282→    if (!container) return;
+   283→    if (document.fullscreenElement) {
+   284→      document.exitFullscreen();
+   285→    } else {
+   286→      container.requestFullscreen().catch(() => toast.error("Fullscreen not supported"));
+   287→    }
+   288→  };
+   289→  const togglePiP = async () => {
+   290→    const v = videoRef.current;
+   291→    if (!v) return;
+   292→    try {
+   293→      // @ts-ignore
+   294→      if (document.pictureInPictureElement) {
+   295→        // @ts-ignore
+   296→        await document.exitPictureInPicture();
+   297→      } else {
+   298→        // @ts-ignore
+   299→        await v.requestPictureInPicture();
+   300→      }
+   301→    } catch {
+   302→      toast.error("PiP not supported");
+   303→    }
+   304→  };
+   305→
+   306→  // Autoplay when `active` becomes true
+   307→  useEffect(() => {
+   308→    const v = videoRef.current;
+   309→    if (!v) return;
+   310→    if (active && autoPlay) {
+   311→      // Try to play; if blocked by browser, stay paused (user gesture needed)
+   312→      v.play().catch(() => {});
+   313→    } else if (!active) {
+   314→      v.pause();
+   315→    }
+   316→  }, [active, autoPlay]);
+   317→
+   318→  return (
+   319→    <div className="cvp-container show-controls" ref={containerRef}>
+   320→      <div className="cvp-wrapper">
+   321→        <div className="cvp-video-timeline" ref={timelineRef}>
+   322→          <div className="cvp-progress-area">
+   323→            <span ref={progressTimeRef}>00:00</span>
+   324→            <div className="cvp-progress-bar" ref={progressBarRef} />
+   325→          </div>
+   326→        </div>
+   327→        <ul className="cvp-video-controls">
+   328→          <li className="cvp-options left">
+   329→            <button className="cvp-volume" ref={volumeBtnRef} title="Mute / Unmute">
+   330→              <i ref={volumeBtnIconRef} className="fa-solid fa-volume-high" />
+   331→            </button>
+   332→            <input type="range" min={0} max={1} step={0.01} defaultValue={1} ref={volumeSliderRef} />
+   333→            <div className="cvp-video-timer">
+   334→              <p className="cvp-current-time" ref={currentTimeRef}>00:00</p>
+   335→              <p className="cvp-separator"> / </p>
+   336→              <p className="cvp-video-duration" ref={videoDurationRef}>00:00</p>
+   337→            </div>
+   338→          </li>
+   339→          <li className="cvp-options center">
+   340→            <button className="cvp-skip-backward" onClick={skipBackward} title="Back 5s">
+   341→              <i className="fas fa-backward" />
+   342→            </button>
+   343→            <button className="cvp-play-pause" onClick={togglePlay} title="Play / Pause">
+   344→              <i ref={playPauseBtnIconRef} className="fas fa-play" />
+   345→            </button>
+   346→            <button className="cvp-skip-forward" onClick={skipForward} title="Forward 5s">
+   347→              <i className="fas fa-forward" />
+   348→            </button>
+   349→          </li>
+   350→          <li className="cvp-options right">
+   351→            <div className="cvp-playback-content">
+   352→              <button className="cvp-playback-speed" ref={speedBtnRef} title="Playback speed">
+   353→                <span className="material-symbols-rounded">slow_motion_video</span>
+   354→              </button>
+   355→              <ul className="cvp-speed-options" ref={speedOptionsRef}>
+   356→                <li data-speed="2">2x</li>
+   357→                <li data-speed="1.5">1.5x</li>
+   358→                <li data-speed="1" className="active">Normal</li>
+   359→                <li data-speed="0.75">0.75x</li>
+   360→                <li data-speed="0.5">0.5x</li>
+   361→              </ul>
+   362→            </div>
+   363→            <button className="cvp-pic-in-pic" onClick={togglePiP} title="Picture in Picture">
+   364→              <span className="material-icons">picture_in_picture_alt</span>
+   365→            </button>
+   366→            <button className="cvp-fullscreen" onClick={toggleFullscreen} title="Fullscreen">
+   367→              <i ref={fullScreenBtnIconRef} className="fa-solid fa-expand" />
+   368→            </button>
+   369→          </li>
+   370→        </ul>
+   371→      </div>
+   372→      <video
+   373→        ref={videoRef}
+   374→        src={src}
+   375→        poster={poster}
+   376→        playsInline
+   377→        preload={preload as any}
+   378→        crossOrigin="anonymous"
+   379→        className="cvp-video"
+   380→      />
+   381→    </div>
+   382→  );
+   383→}
+   384→
+   385→/**
+   386→ * ReelsFeed — vertical scroll-snap feed (TikTok/Instagram style).
+   387→ * Each video occupies the full viewport. IntersectionObserver autoplays the
+   388→ * active video and pauses the others. Next video is preloaded.
+   389→ */
+   390→function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; startIndex: number; onClose: () => void }) {
+   391→  const containerRef = useRef<HTMLDivElement>(null);
+   392→  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+   393→  const [activeIndex, setActiveIndex] = useState(startIndex);
+   394→  const [showChrome, setShowChrome] = useState(true);
+   395→  const hideChromeTimer = useRef<any>(null);
+   396→
+   397→  // Initial scroll
+   398→  useEffect(() => {
+   399→    const el = itemRefs.current[startIndex];
+   400→    if (el) el.scrollIntoView({ behavior: "auto", block: "start" });
+   401→  }, [startIndex]);
+   402→
+   403→  // IntersectionObserver — track which item is active
+   404→  useEffect(() => {
+   405→    const opts: IntersectionObserverInit = { root: containerRef.current, threshold: [0.6] };
+   406→    const obs = new IntersectionObserver((entries) => {
+   407→      for (const e of entries) {
+   408→        const idx = Number((e.target as HTMLElement).dataset.index);
+   409→        if (e.isIntersecting && e.intersectionRatio >= 0.6) setActiveIndex(idx);
+   410→      }
+   411→    }, opts);
+   412→    itemRefs.current.forEach((el) => el && obs.observe(el));
+   413→    return () => obs.disconnect();
+   414→  }, [items.length]);
+   415→
+   416→  // Keyboard nav
+   417→  useEffect(() => {
+   418→    const onKey = (e: KeyboardEvent) => {
+   419→      if (e.key === "Escape") onClose();
+   420→      else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+   421→        e.preventDefault();
+   422→        scrollToIndex(activeIndex - 1);
+   423→      } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+   424→        e.preventDefault();
+   425→        scrollToIndex(activeIndex + 1);
+   426→      }
+   427→    };
+   428→    window.addEventListener("keydown", onKey);
+   429→    return () => window.removeEventListener("keydown", onKey);
+   430→  }, [activeIndex, onClose]);
+   431→
+   432→  const scrollToIndex = useCallback((i: number) => {
+   433→    const clamped = Math.max(0, Math.min(items.length - 1, i));
+   434→    const el = itemRefs.current[clamped];
+   435→    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+   436→  }, [items.length]);
+   437→
+   438→  const pokeChrome = () => {
+   439→    setShowChrome(true);
+   440→    if (hideChromeTimer.current) clearTimeout(hideChromeTimer.current);
+   441→    hideChromeTimer.current = setTimeout(() => setShowChrome(false), 3000);
+   442→  };
+   443→  useEffect(() => {
+   444→    pokeChrome();
+   445→    return () => { if (hideChromeTimer.current) clearTimeout(hideChromeTimer.current); };
+   446→  }, []);
+   447→
+   448→  return (
+   449→    <div
+   450→      ref={containerRef}
+   451→      className="fixed inset-0 z-50 bg-black overflow-y-auto no-scrollbar reels-feed"
+   452→      onMouseMove={pokeChrome}
+   453→      onTouchStart={pokeChrome}
+   454→    >
+   455→      <AnimatePresence>
+   456→        {showChrome && (
+   457→          <motion.div
+   458→            initial={{ opacity: 0, y: -20 }}
+   459→            animate={{ opacity: 1, y: 0 }}
+   460→            exit={{ opacity: 0, y: -20 }}
+   461→            className="fixed top-0 inset-x-0 z-50 p-3 pt-safe bg-gradient-to-b from-black/70 to-transparent flex items-center justify-between pointer-events-none"
+   462→          >
+   463→            <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10 pointer-events-auto">
+   464→              <X className="w-6 h-6" />
+   465→            </Button>
+   466→            <div className="text-white text-xs font-medium truncate max-w-[60%] pointer-events-auto">
+   467→              {items[activeIndex]?.name} · {activeIndex + 1}/{items.length}
+   468→            </div>
+   469→            <div className="w-10" />
+   470→          </motion.div>
+   471→        )}
+   472→      </AnimatePresence>
+   473→
+   474→      <AnimatePresence>
+   475→        {showChrome && (
+   476→          <>
+   477→            <motion.button
+   478→              initial={{ opacity: 0, x: 20 }}
+   479→              animate={{ opacity: 1, x: 0 }}
+   480→              exit={{ opacity: 0, x: 20 }}
+   481→              onClick={() => scrollToIndex(activeIndex + 1)}
+   482→              disabled={activeIndex >= items.length - 1}
+   483→              className="fixed right-4 top-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 backdrop-blur flex items-center justify-center text-white"
+   484→            >
+   485→              <ChevronDown className="w-5 h-5" />
+   486→            </motion.button>
+   487→            <motion.button
+   488→              initial={{ opacity: 0, x: 20 }}
+   489→              animate={{ opacity: 1, x: 0 }}
+   490→              exit={{ opacity: 0, x: 20 }}
+   491→              onClick={() => scrollToIndex(activeIndex - 1)}
+   492→              disabled={activeIndex <= 0}
+   493→              className="fixed left-4 top-1/2 -translate-y-1/2 z-50 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-30 backdrop-blur flex items-center justify-center text-white"
+   494→            >
+   495→              <ChevronUp className="w-5 h-5" />
+   496→            </motion.button>
+   497→          </>
+   498→        )}
+   499→      </AnimatePresence>
+   500→
+   501→      {items.map((m, i) => {
+   502→        const distance = Math.abs(i - activeIndex);
+   503→        const shouldPreload = distance <= 1;
+   504→        return (
+   505→          <div
+   506→            key={m.id}
+   507→            data-index={i}
+   508→            ref={(el) => { itemRefs.current[i] = el; }}
+   509→            className="reels-item w-full flex items-center justify-center bg-black relative"
+   510→            style={{ height: "100dvh" }}
+   511→          >
+   512→            <ReelsVideoItem
+   513→              media={m}
+   514→              active={i === activeIndex}
+   515→              preload={shouldPreload ? "auto" : "metadata"}
+   516→            />
+   517→          </div>
+   518→        );
+   519→      })}
+   520→    </div>
+   521→  );
+   522→}
+   523→
+   524→function ReelsVideoItem({
+   525→  media,
+   526→  active,
+   527→  preload,
+   528→}: {
+   529→  media: ApiMediaItem;
+   530→  active: boolean;
+   531→  preload: "auto" | "metadata" | "none";
+   532→}) {
+   533→  const src = `/api/media/${media.id}/stream`;
+   534→  const poster = media.thumbnailUrl ?? undefined;
+   535→  const lastSavedRef = useRef(0);
+   536→
+   537→  const onProgress = useCallback((currentTime: number, duration: number) => {
+   538→    if (Math.abs(currentTime - lastSavedRef.current) >= 5) {
+   539→      lastSavedRef.current = currentTime;
+   540→      saveWatchProgress(media.id, currentTime, duration || undefined);
+   541→    }
+   542→  }, [media.id]);
+   543→
+   544→  return (
+   545→    <div className="w-full h-full flex items-center justify-center">
+   546→      <div className="relative w-full h-full max-w-[100vw] max-h-[100dvh] flex items-center justify-center cvp-reels-item">
+   547→        <CustomVideoPlayer
+   548→          src={src}
+   549→          poster={poster}
+   550→          title={media.name}
+   551→          autoPlay={active}
+   552→          preload={preload}
+   553→          active={active}
+   554→          onProgress={onProgress}
+   555→        />
+   556→      </div>
+   557→    </div>
+   558→  );
+   559→}
+   560→
+   561→function StandardPlayer({ media, onClose }: { media: ApiMediaItem; onClose: () => void }) {
+   562→  const src = `/api/media/${media.id}/stream`;
+   563→  const poster = media.thumbnailUrl ?? undefined;
+   564→  const lastSavedRef = useRef(0);
+   565→
+   566→  const onProgress = useCallback((currentTime: number, duration: number) => {
+   567→    if (Math.abs(currentTime - lastSavedRef.current) >= 5) {
+   568→      lastSavedRef.current = currentTime;
+   569→      saveWatchProgress(media.id, currentTime, duration || undefined);
+   570→    }
+   571→  }, [media.id]);
+   572→
+   573→  return (
+   574→    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+   575→      <div className="absolute top-0 inset-x-0 z-50 p-3 pt-safe bg-gradient-to-b from-black/70 to-transparent flex items-center gap-3 pointer-events-auto">
+   576→        <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10">
+   577→          <X className="w-5 h-5" />
+   578→        </Button>
+   579→        <div className="text-white text-sm font-medium truncate flex-1">{media.name}</div>
+   580→      </div>
+   581→      <div className="flex-1 flex items-center justify-center">
+   582→        <div className="cvp-standard-wrap">
+   583→          <CustomVideoPlayer
+   584→            src={src}
+   585→            poster={poster}
+   586→            title={media.name}
+   587→            autoPlay
+   588→            preload="auto"
+   589→            active
+   590→            onProgress={onProgress}
+   591→          />
+   592→        </div>
+   593→      </div>
+   594→    </div>
+   595→  );
+   596→}
+   597→
+   598→export function VideoPlayerOverlay({ items, startIndex, reelsMode: initialReelsMode = false, onClose }: Props) {
+   599→  const videoPrefs = useUIStore((s) => s.videoPrefs);
+   600→  const setVideoPrefs = useUIStore((s) => s.setVideoPrefs);
+   601→  const [reelsMode, setReelsMode] = useState(initialReelsMode || videoPrefs?.reelsEnabled || false);
+   602→  const [index, setIndex] = useState(startIndex);
+   603→  const media = items[index];
+   604→
+   605→  const toggleReelsMode = () => {
+   606→    const newVal = !reelsMode;
+   607→    setReelsMode(newVal);
+   608→    if (setVideoPrefs && videoPrefs) {
+   609→      setVideoPrefs({ ...videoPrefs, reelsEnabled: newVal });
+   610→    }
+   611→    fetch("/api/user/nav-prefs", {
+   612→      method: "PUT",
+   613→      headers: { "Content-Type": "application/json" },
+   614→      body: JSON.stringify({ reelsEnabled: newVal }),
+   615→    }).catch(() => {});
+   616→    toast.success(newVal ? "Reels mode enabled" : "Standard mode enabled");
+   617→  };
+   618→
+   619→  if (!media) {
+   620→    return (
+   621→      <div className="fixed inset-0 bg-black z-50 flex items-center justify-center text-white">
+   622→        <p>Video not found</p>
+   623→        <Button variant="outline" onClick={onClose} className="ml-3 text-white">Close</Button>
+   624→      </div>
+   625→    );
+   626→  }
+   627→
+   628→  if (reelsMode) {
+   629→    return (
+   630→      <div className="fixed inset-0 z-50 bg-black">
+   631→        <ReelsFeed items={items} startIndex={startIndex} onClose={onClose} />
+   632→        <Button
+   633→          variant="ghost"
+   634→          size="icon"
+   635→          onClick={toggleReelsMode}
+   636→          className="fixed top-3 right-3 z-[60] text-white hover:bg-white/10 bg-black/30 backdrop-blur"
+   637→          title="Switch to Standard mode"
+   638→        >
+   639→          <Monitor className="w-5 h-5" />
+   640→        </Button>
+   641→      </div>
+   642→    );
+   643→  }
+   644→
+   645→  return (
+   646→    <div className="fixed inset-0 z-50 bg-black">
+   647→      <StandardPlayer media={media} onClose={onClose} />
+   648→      <Button
+   649→        variant="ghost"
+   650→        size="icon"
+   651→        onClick={toggleReelsMode}
+   652→        className="fixed top-3 right-3 z-[60] text-white hover:bg-white/10 bg-black/30 backdrop-blur"
+   653→        title="Switch to Reels mode"
+   654→      >
+   655→        <Smartphone className="w-5 h-5" />
+   656→      </Button>
+   657→      <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-black/50 backdrop-blur px-3 py-1.5 rounded-full">
+   658→        <Button
+   659→          variant="ghost"
+   660→          size="sm"
+   661→          disabled={index <= 0}
+   662→          onClick={() => setIndex((i) => Math.max(0, i - 1))}
+   663→          className="text-white hover:bg-white/10 disabled:opacity-30 h-8 px-2"
+   664→        >
+   665→          <ChevronUp className="w-4 h-4" />
+   666→        </Button>
+   667→        <span className="text-white text-xs">{index + 1} / {items.length}</span>
+   668→        <Button
+   669→          variant="ghost"
+   670→          size="sm"
+   671→          disabled={index >= items.length - 1}
+   672→          onClick={() => setIndex((i) => Math.min(items.length - 1, i + 1))}
+   673→          className="text-white hover:bg-white/10 disabled:opacity-30 h-8 px-2"
+   674→        >
+   675→          <ChevronDown className="w-4 h-4" />
+   676→        </Button>
+   677→      </div>
+   678→    </div>
+   679→  );
+   680→}
+   681→

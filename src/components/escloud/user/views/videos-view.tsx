@@ -5,9 +5,10 @@ import { MediaGrid, MediaSkeleton, EmptyState, ViewToggle } from "../../shared/m
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Video as VideoIcon, Loader2 } from "lucide-react";
+import { Search, Video as VideoIcon, Loader2, Smartphone } from "lucide-react";
 import { useUploadStore } from "@/stores/upload";
 import { useAuthStore } from "@/stores/auth";
+import { useUIStore } from "@/stores/ui";
 import { toast } from "sonner";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { UploadButton } from "../../shared/upload-button";
@@ -17,6 +18,7 @@ export function VideosView() {
   const user = useAuthStore((s) => s.user)!;
   const refreshSession = useAuthStore((s) => s.refreshSession);
   const addFiles = useUploadStore((s) => s.addFiles);
+  const setOverlay = useUIStore((s) => s.setOverlay);
   const canUpload = user.uploadEnabled && hasPermission(user.permissions, PERMISSIONS.UPLOAD_VIDEOS);
 
   useEffect(() => { refreshSession(); }, [refreshSession]);
@@ -31,6 +33,15 @@ export function VideosView() {
     sort,
     pageSize: 24,
   });
+
+  // Open the first video in Reels mode (vertical scroll-snap feed)
+  const openReelsMode = () => {
+    if (items.length === 0) {
+      toast.error("No videos to play");
+      return;
+    }
+    setOverlay("video-player", { mediaId: items[0].id, reelsMode: true });
+  };
 
   return (
     <div className="px-3 md:px-6 py-4 md:py-6 max-w-7xl mx-auto space-y-4">
@@ -51,6 +62,19 @@ export function VideosView() {
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle view={view} onChange={setView} />
+          {/* Reels mode button — opens the first video in vertical scroll-snap feed */}
+          {items.length > 0 && (
+            <Button
+              onClick={openReelsMode}
+              size="sm"
+              variant="outline"
+              className="bg-brand-gradient text-white border-0 hover:opacity-95 shadow-brand btn-press"
+              title="Watch as Reels (TikTok / Instagram style)"
+            >
+              <Smartphone className="w-4 h-4 mr-1.5" />
+              Reels
+            </Button>
+          )}
           {canUpload && (
             <UploadButton
               label="Upload"

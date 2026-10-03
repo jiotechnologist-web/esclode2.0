@@ -128,3 +128,56 @@ Stage Summary:
 - Video player REPLACED: Vidstack removed; new CustomVideoPlayer is a faithful React port of Chirag047's Video-Player (https://github.com/Chirag047/Video-Player), with reel mode added (vertical scroll-snap feed with autoplay-on-visible)
 - Notes REPLACED: previous Tiptap-based shadcn-style NotesView replaced with the user's exact Pro Keep Style HTML/CSS structure; overlays are SOLID (no transparency, no backdrop-filter) per the user's request; JS ported to React with /api/notes backend persistence (instead of localStorage) so notes survive across sessions/devices
 - All changes verified end-to-end; dev server runs without errors
+
+---
+Task ID: master-v4
+Agent: Super Z (main)
+Task: Fix reel mode scroll, fix next/prev buttons, add YouTube-style gestures, add Reels button to Videos page
+
+Work Log:
+- Diagnosed the reel-mode scroll-snap issue: the `.reels-feed` container was missing `scroll-snap-type: y mandatory` and the items were missing `scroll-snap-align: start`. The original CSS I added (with `.reels-feed` rules) was accidentally removed when I rewrote the Vidstack section earlier.
+- Added a new dedicated CSS class `.cvp-reels-feed` (scoped under the `.cvp-` prefix) that re-establishes the scroll-snap container:
+  * `scroll-snap-type: y mandatory`
+  * `scroll-snap-stop: always` per item (forces one-by-one snapping, no skipping)
+  * `-webkit-overflow-scrolling: touch` (iOS momentum scroll)
+  * `overscroll-behavior: contain` (prevents body from scrolling underneath)
+  * `touch-action: pan-y` (allows vertical touch scroll)
+- Added `.cvp-reels-item` class with `height: 100dvh` (dynamic viewport height, accounts for mobile browser chrome) and `scroll-snap-align: start`
+- Fixed next/previous buttons in standard mode: the `<StandardPlayer>` now receives `onPrev`/`onNext` props and uses a `key={media.id}` on the wrapper so the CustomVideoPlayer remounts (and reloads the `<video>`) when the index changes. Also added an explicit `v.load()` call when `src` changes inside CustomVideoPlayer.
+- Added YouTube-style double-tap to seek (per the user's request — 5s per tap, not 10s):
+  * Click on left half of video → seek −5s (with stacked feedback: 5s, 10s, 15s, ... for successive double-taps within 800ms)
+  * Click on right half → seek +5s (same stacking)
+  * Single tap toggles play (after a 280ms wait, in case a double-tap is coming)
+  * Touch double-tap on mobile: same behavior (300ms window)
+  * Visual feedback: pulsing overlay with arrow icon + "5s/10s/15s" text on the corresponding side
+- Added YouTube-style swipe-up volume/brightness gestures:
+  * Touch start anywhere on the video, then swipe vertically (≥12px) to engage
+  * Left half → brightness control (CSS filter: brightness(0.2..1.0) on the `<video>` element)
+  * Right half → volume control (0..1 on `video.volume`)
+  * Vertical bar overlay with icon, fill, and label ("Brightness" / "Volume") shows the current value
+  * Each touchmove frame is incremental (resets startY per frame)
+  * Overlay auto-hides 300ms after touch end
+- Added mouse-wheel support for desktop:
+  * Wheel up/down on left half → brightness
+  * Wheel up/down on right half → volume
+  * Same VB overlay shown for 700ms then auto-hides
+- Added a "Reels" button to the Videos page (videos-view.tsx):
+  * Smartphone icon + "Reels" label
+  * Tapping it opens the first video in Reels mode (vertical scroll-snap feed) directly
+  * Implemented by passing `reelsMode: true` as a parameter when calling `setOverlay("video-player", { mediaId, reelsMode: true })`
+  * Updated media-viewer-overlay.tsx to read the `reelsMode` param and pass it to `<VideoPlayerOverlay reelsMode={...}>`
+- Fixed a duplicate `onTouchEndArea` function definition that broke compilation — merged the double-tap-to-seek handler and the volume/brightness cleanup into a single function
+- Verified end-to-end:
+  * Home page loads HTTP 200 ✓
+  * Video API + stream API both 200 OK ✓
+  * Notes API returns 5 notes ✓
+  * Move-to-private / move-to-public flow still works ✓
+  * TypeScript check on changed files = no errors ✓
+  * Dev server log shows no errors ✓
+
+Stage Summary:
+- Reels mode scroll-snap now WORKS (added the `.cvp-reels-feed` and `.cvp-reels-item` scroll-snap CSS rules)
+- Next/Previous buttons in standard mode now WORK (key={media.id} forces remount; explicit v.load() reloads the new src)
+- YouTube-style double-tap-to-seek: 5s per tap (left = −5s, right = +5s), with stacked feedback (5s/10s/15s for successive taps)
+- YouTube-style swipe-up gestures: left half = brightness, right half = volume, with vertical bar overlay; also mouse wheel on desktop
+- "Reels" button added to the Videos page that opens the player in reels mode directly

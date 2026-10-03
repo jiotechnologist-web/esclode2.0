@@ -103,7 +103,9 @@ export function MediaViewerOverlay() {
 
   // Route to specialized viewer based on type
   if (overlay === "video-player" && item.type === "video") {
-    const reelsMode = videoPrefs?.reelsEnabled ?? false;
+    // Read explicit `reelsMode` param if set by the caller (e.g. "Watch as Reels" button on Videos page)
+    const reelsParam = params.reelsMode === true || params.reelsMode === "true";
+    const reelsMode = reelsParam || (videoPrefs?.reelsEnabled ?? false);
     return <VideoPlayerOverlay items={items} startIndex={index} reelsMode={reelsMode} onClose={goBack} />;
   }
 
