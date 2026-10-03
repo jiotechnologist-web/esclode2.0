@@ -1,0 +1,202 @@
+     1→     1→<!doctype html>
+     2→     2→<html lang="en">
+     3→     3→<head>
+     4→     4→<meta charset="utf-8">
+     5→     5→<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+     6→     6→<meta name="theme-color" content="#ffffff">
+     7→     7→<title>Notes — Pro Keep Style</title>
+     8→     8→<style>
+     9→     9→:root{
+    10→    10→  --bg:#fff;--surface:#fff;--surface2:#f7f8fa;--text:#202124;--muted:#6b7280;--line:#e3e6ea;
+    11→    11→  --accent:#1a73e8;--accent-soft:#e8f0fe;--danger:#b3261e;--sidebar:250px;--radius:16px;
+    12→    12→  --shadow:0 2px 8px rgba(60,64,67,.15),0 1px 3px rgba(60,64,67,.08);
+    13→    13→}
+    14→    14→*{box-sizing:border-box}
+    15→    15→html,body{height:100%;margin:0}
+    16→    16→body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:var(--text);background:var(--bg)}
+    17→    17→button,input,textarea,select{font:inherit}button{cursor:pointer}
+    18→    18→svg{display:block}
+    19→    19→.app{min-height:100%;display:flex;flex-direction:column}
+    20→    20→.topbar{height:70px;display:flex;align-items:center;gap:12px;padding:0 16px;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:60;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(15px)}
+    21→    21→.brand{display:flex;align-items:center;gap:10px;min-width:220px}.brand strong{font-size:19px;letter-spacing:-.02em}
+    22→    22→.logo{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#ffd76a,#ffb347);display:grid;place-items:center;color:#5d4300;box-shadow:0 5px 14px rgba(255,179,71,.2)}
+    23→    23→.menu-btn{display:none}.toolbar{display:flex;align-items:center;gap:2px;margin-left:auto}
+    24→    24→.icon-btn{width:40px;height:40px;border:0;background:transparent;border-radius:50%;display:grid;place-items:center;color:#5f6368}.icon-btn:hover{background:#f1f3f4}.icon-btn svg{width:19px;height:19px}.icon-btn.danger{color:var(--danger)!important}
+    25→    25→.search{height:46px;display:flex;align-items:center;gap:9px;background:#f1f3f4;border:1px solid transparent;border-radius:13px;padding:0 14px;max-width:680px;flex:1;transition:.15s}.search:focus-within{background:var(--bg);border-color:#cfd3d8;box-shadow:0 2px 8px rgba(0,0,0,.08)}.search svg{width:19px;color:#6b7280;flex:none}.search input{border:0;outline:0;background:transparent;width:100%;color:var(--text);font-size:15px}
+    26→    26→.profile{width:35px;height:35px;border-radius:50%;background:#dbeafe;color:#1d4ed8;display:grid;place-items:center;font-weight:700;font-size:13px}
+    27→    27→.body{flex:1;display:flex;min-height:calc(100vh - 70px)}
+    28→    28→.sidebar{width:var(--sidebar);padding:14px 8px;border-right:1px solid var(--line);background:var(--surface);z-index:50;transition:transform .2s}.sidebar nav{display:flex;flex-direction:column;gap:3px}
+    29→    29→.nav-btn{display:flex;align-items:center;gap:15px;border:0;background:transparent;border-radius:0 24px 24px 0;padding:12px 18px;font-size:14px;color:#4b5563;text-align:left;width:100%}.nav-btn:hover{background:#f5f6f7}.nav-btn.active{background:#feefc3;color:#222}.nav-btn svg{width:19px;height:19px;flex:none}
+    30→    30→.section-head{display:flex;align-items:center;justify-content:space-between;margin:22px 9px 7px 15px}.section-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#9aa0a6}.tiny-btn{width:30px;height:30px;border:0;background:transparent;border-radius:50%;display:grid;place-items:center;color:#6b7280}.tiny-btn:hover{background:#f1f3f4}.tiny-btn svg{width:16px;height:16px}
+    31→    31→.label-list{display:flex;flex-direction:column;gap:2px}.label-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-radius:10px;font-size:14px;cursor:pointer;color:#4b5563}.label-row:hover{background:#f5f6f7}.label-row.active{background:var(--accent-soft);color:#174ea6}.label-dot{width:10px;height:10px;border-radius:50%;border:1px solid rgba(0,0,0,.12);flex:none}.label-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.label-count{font-size:11px;color:#9aa0a6}
+    32→    32→.main{flex:1;min-width:0;padding:26px 28px 96px;overflow:auto}.main-inner{max-width:1380px;margin:0 auto}.view-head{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:18px}.view-title{font-size:21px;font-weight:750;letter-spacing:-.025em}.view-sub{font-size:12px;color:var(--muted);margin-top:3px}.view-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.select{height:38px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:0 11px;color:#4b5563}.toolbar-btn{height:38px;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:0 12px;display:inline-flex;align-items:center;gap:7px;color:#4b5563}.toolbar-btn:hover{background:#f7f8f9}.toolbar-btn svg{width:16px;height:16px}
+    33→    33→.notes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:15px;align-items:start}.notes-grid.list{grid-template-columns:1fr;max-width:920px;margin:auto}
+    34→    34→.card{position:relative;border:1px solid var(--line);border-radius:14px;padding:15px;background:var(--surface);min-height:115px;box-shadow:0 1px 1px rgba(0,0,0,.03);transition:transform .14s,box-shadow .14s,border-color .14s;overflow:hidden;cursor:pointer}.card:hover{box-shadow:var(--shadow);transform:translateY(-1px)}
+    35→    35→.card.color-yellow{background:#fff8d8}.card.color-green{background:#e5f5e9}.card.color-blue{background:#e7f0ff}.card.color-purple{background:#f3e8ff}.card.color-pink{background:#ffe7ef}.card.color-gray{background:#f4f5f7}
+    36→    36→.card h3{font-size:15px;margin:0 58px 9px 0;line-height:1.35}.card p{margin:0;color:#3f4348;white-space:pre-wrap;font-size:14px;line-height:1.52}.card .pin-top{position:absolute;right:5px;top:5px}.card .menu-top{position:absolute;right:43px;top:5px}
+    37→    37→.card-meta{margin-top:11px;color:#858b93;font-size:11px;display:flex;align-items:center;gap:5px;line-height:1.35}.card-meta svg{flex:none}.chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:11px}.chip{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.62);border:1px solid rgba(0,0,0,.06);font-size:10px;color:#61656a}
+    38→    38→.card-actions{display:flex;gap:2px;margin-top:11px;opacity:0;transform:translateY(3px);transition:.14s}.card:hover .card-actions{opacity:1;transform:none}.card-action{width:32px;height:32px;border:0;background:rgba(255,255,255,.62);border-radius:50%;display:grid;place-items:center;color:#5f6368}.card-action:hover{background:rgba(255,255,255,.95)}.card-action svg{width:16px;height:16px}
+    39→    39→.check-list{display:flex;flex-direction:column;gap:8px;margin-top:4px}.check-item{display:flex;gap:9px;align-items:flex-start;font-size:14px;line-height:1.42}.check-item input{width:17px;height:17px;margin:2px 0 0;accent-color:var(--accent);cursor:pointer;flex:none}.check-item span{min-width:0;white-space:normal;overflow-wrap:anywhere}.check-item.done span{text-decoration:line-through;color:#8b8f94}.note-line{font-size:14px;line-height:1.52;margin-top:2px;color:#3f4348;white-space:pre-wrap;overflow-wrap:anywhere}.check-progress{font-size:11px;color:#777;margin-top:8px}
+    40→    40→.trash-actions{display:none}.trash-mode .trash-actions{display:flex}.trash-mode .card-actions .normal-only{display:none}
+    41→    41→.empty{display:grid;place-items:center;text-align:center;padding:95px 20px;color:#7b8188;grid-column:1/-1}.empty-icon{width:74px;height:74px;border-radius:50%;background:var(--surface2);display:grid;place-items:center;margin-bottom:15px}.empty-icon svg{width:34px;height:34px;color:#a1a7ad}
+    42→    42→.fab{position:fixed;right:30px;bottom:30px;width:58px;height:58px;border:0;border-radius:18px;background:#1a73e8;color:#fff;display:grid;place-items:center;box-shadow:0 8px 22px rgba(26,115,232,.32);z-index:35}.fab:hover{transform:translateY(-1px);background:#1769d4}.fab svg{width:25px}
+    43→    43→.overlay{position:fixed;inset:0;background:rgba(15,23,42,.38);backdrop-filter:blur(5px);display:none;align-items:center;justify-content:center;z-index:100;padding:18px}.overlay.show{display:flex}
+    44→    44→.editor{width:min(800px,100%);max-height:93vh;overflow:auto;background:var(--surface);border-radius:18px;box-shadow:0 24px 70px rgba(0,0,0,.27);border:1px solid var(--line)}.editor-head{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(10px);z-index:2}.editor-title{border:0;outline:0;font-size:20px;font-weight:750;flex:1;background:transparent;color:var(--text)}
+    45→    45→.editor-body{padding:20px}.editor-toolbar{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:13px}.pill-btn{height:36px;min-width:36px;padding:0 10px;border:1px solid var(--line);background:var(--surface);border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:7px;color:#4b5563}.pill-btn:hover{background:#f7f8f9}.pill-btn.active{background:var(--accent-soft);border-color:#bfd4fb;color:var(--accent)}.pill-btn svg{width:16px;height:16px;flex:none}
+    46→    46→.editor-text{width:100%;min-height:280px;resize:vertical;border:0;outline:0;font-size:16px;line-height:1.65;white-space:pre-wrap;word-break:break-word}.editor-text:empty:before{content:attr(data-placeholder);color:#a1a7ad}.check-editor{display:none;margin-top:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface2)}.check-editor.show{display:block}.check-editor-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.check-editor-title{font-size:12px;font-weight:700;color:#6b7280}.check-row{display:flex;gap:7px;margin-bottom:8px;align-items:center}.check-row input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent)}.check-row input[type=text]{flex:1;height:37px;border:1px solid var(--line);border-radius:8px;padding:0 10px;outline:none;background:var(--surface);color:var(--text)}
+    47→    47→.colorbar{display:flex;gap:8px;align-items:center;padding-top:13px;margin-top:14px;border-top:1px solid var(--line)}.color-dot{width:28px;height:28px;border-radius:50%;border:2px solid transparent}.color-dot:hover{transform:scale(1.04)}.color-dot.selected{border-color:#1f2937}.reminder-box{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding:10px;border-radius:10px;background:var(--surface2);font-size:13px}.reminder-box-left{display:flex;align-items:center;gap:7px;min-width:0}.reminder-box span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    48→    48→.editor-footer{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--surface)}.footer-left,.footer-right{display:flex;gap:4px;align-items:center}.save-status{font-size:12px;color:#8b9096}.primary{background:#1a73e8;color:#fff;border:0;border-radius:9px;height:38px;padding:0 15px;font-weight:650}.secondary{background:var(--surface);border:1px solid var(--line);height:38px;border-radius:9px;padding:0 13px;color:#4b5563}.danger-text{color:var(--danger)!important}
+    49→    49→.modal-small{width:min(560px,100%);background:var(--surface);border-radius:17px;box-shadow:0 20px 60px rgba(0,0,0,.25);padding:20px;border:1px solid var(--line)}.modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:15px}.modal-head h3{margin:0;font-size:18px}.modal-body{max-height:55vh;overflow:auto}.reminder-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.reminder-grid input,.label-create input{height:42px;border:1px solid var(--line);border-radius:9px;padding:0 10px;background:var(--surface);color:var(--text);outline:none}.modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.label-picker-list{display:flex;flex-direction:column;gap:6px}.label-option{display:flex;align-items:center;gap:10px;padding:9px;border-radius:10px}.label-option:hover{background:var(--surface2)}.label-option input{width:17px;height:17px;accent-color:var(--accent)}.label-create{display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}.label-create input{flex:1}
+    50→    50→.menu-panel{position:fixed;z-index:170;min-width:180px;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 35px rgba(0,0,0,.18);display:none}.menu-panel.show{display:block}.menu-item{width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;border:0;background:transparent;border-radius:8px;color:#4b5563;text-align:left;font-size:13px}.menu-item:hover{background:var(--surface2)}.menu-item svg{width:16px;height:16px;flex:none}.menu-item.danger{color:var(--danger)}
+    51→    51→.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#202124;color:#fff;padding:10px 15px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:220}.toast.show{opacity:1;transform:translate(-50%,0)}
+    52→    52→.backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.2);z-index:45}.backdrop.show{display:block}
+    53→    53→@media(max-width:900px){.brand{min-width:auto}.brand strong{display:none}.menu-btn{display:grid}.sidebar{position:fixed;top:70px;bottom:0;left:0;transform:translateX(-105%);box-shadow:12px 0 25px rgba(0,0,0,.08)}.sidebar.open{transform:none}.main{padding:20px 15px 90px}.search{max-width:none}.notes-grid{grid-template-columns:repeat(auto-fill,minmax(195px,1fr))}}
+    54→    54→@media(max-width:560px){.topbar{height:62px;padding:0 10px}.body{min-height:calc(100vh - 62px)}.sidebar{top:62px}.toolbar .hide-sm{display:none}.main{padding:15px 10px 85px}.view-head{align-items:flex-start}.view-actions{justify-content:flex-end}.notes-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.card{padding:12px;border-radius:12px}.card h3{font-size:14px}.card p,.note-line,.check-item{font-size:13px}.card-actions{opacity:1;transform:none}.fab{right:17px;bottom:17px;width:54px;height:54px;border-radius:16px}.editor{max-height:96vh;border-radius:15px}.editor-body{padding:15px}.reminder-grid{grid-template-columns:1fr}.search{height:42px}.view-sub{max-width:52vw}.menu-panel{max-width:calc(100vw - 20px)}}
+    55→    55→.dark{--bg:#202124;--surface:#202124;--surface2:#292a2d;--text:#e8eaed;--muted:#9aa0a6;--line:#3c4043}.dark .topbar{background:rgba(32,33,36,.92)}.dark .search{background:#303134}.dark .search:focus-within{background:#202124;border-color:#5f6368}.dark .nav-btn,.dark .label-row,.dark .pill-btn,.dark .toolbar-btn,.dark .secondary,.dark .select,.dark .card-action{color:#c6c9ce}.dark .nav-btn:hover,.dark .label-row:hover,.dark .pill-btn:hover,.dark .toolbar-btn:hover,.dark .tiny-btn:hover,.dark .icon-btn:hover{background:#303134}.dark .card p,.dark .note-line{color:#d2d5d8}.dark .color-yellow{background:#4b411d}.dark .color-green{background:#203a28}.dark .color-blue{background:#20344f}.dark .color-purple{background:#392949}.dark .color-pink{background:#4c2733}.dark .color-gray{background:#2a2d31}.dark .card{border-color:#45484d}.dark .card-action{background:rgba(32,33,36,.62)}
+    56→    56→</style>
+    57→    57→</head>
+    58→    58→<body>
+    59→    59→<div class="app">
+    60→    60→<header class="topbar">
+    61→    61→  <button class="icon-btn menu-btn" aria-label="Menu" title="Menu" onclick="toggleSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+    62→    62→  <div class="brand"><div class="logo"><svg viewBox="0 0 24 24" width="21" height="21" fill="currentColor"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Z"/></svg></div><strong>Notes</strong></div>
+    63→    63→  <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="search" placeholder="Search your notes..." oninput="renderNotes()"></label>
+    64→    64→  <div class="toolbar">
+    65→    65→    <button class="icon-btn hide-sm" title="Refresh" onclick="renderNotes()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8.1 8.1 0 0 0-15.7-2M4 4v5h5"/><path d="M4 13a8.1 8.1 0 0 0 15.7 2M20 20v-5h-5"/></svg></button>
+    66→    66→    <button class="icon-btn hide-sm" title="Import / Export" onclick="openDataMenu(event)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg></button>
+    67→    67→    <button class="icon-btn hide-sm" title="Grid / List" onclick="toggleView()"><svg id="viewIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></button>
+    68→    68→    <button class="icon-btn" title="Dark mode" onclick="toggleDark()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.7 6.7 0 0 0 21 12.8Z"/></svg></button>
+    69→    69→    <div class="profile">U</div>
+    70→    70→  </div>
+    71→    71→</header>
+    72→    72→<div class="body">
+    73→    73→<aside id="sidebar" class="sidebar">
+    74→    74→  <nav>
+    75→    75→    <button class="nav-btn active" data-filter="notes" onclick="setFilter('notes',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 0 1 2-2h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v7h6"/></svg> Notes <span class="label-count" id="countNotes"></span></button>
+    76→    76→    <button class="nav-btn" data-filter="reminders" onclick="setFilter('reminders',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg> Reminders</button>
+    77→    77→    <button class="nav-btn" data-filter="archive" onclick="setFilter('archive',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3zM9 12h6"/></svg> Archive</button>
+    78→    78→    <button class="nav-btn" data-filter="trash" onclick="setFilter('trash',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14M9 7V4h6v3"/></svg> Trash <span class="label-count" id="countTrash"></span></button>
+    79→    79→  </nav>
+    80→    80→  <div class="section-head"><div class="section-label">Labels</div><button class="tiny-btn" title="Manage labels" onclick="openLabelManager()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18"/></svg></button></div>
+    81→    81→  <div id="labels" class="label-list"></div>
+    82→    82→</aside>
+    83→    83→<div id="backdrop" class="backdrop" onclick="toggleSidebar(false)"></div>
+    84→    84→<main class="main"><div class="main-inner">
+    85→    85→  <div class="view-head">
+    86→    86→    <div><div class="view-title" id="viewTitle">Notes</div><div class="view-sub" id="viewSub">Your notes, checklists and reminders</div></div>
+    87→    87→    <div class="view-actions">
+    88→    88→      <div class="sort-row">Sort <select class="select" id="sort" onchange="renderNotes()"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="title">Title A–Z</option></select></div>
+    89→    89→      <button id="emptyTrashBtn" class="toolbar-btn" style="display:none" onclick="emptyTrash()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14M9 7V4h6v3"/></svg> Empty trash</button>
+    90→    90→    </div>
+    91→    91→  </div>
+    92→    92→  <section id="notesGrid" class="notes-grid"></section>
+    93→    93→</div></main></div>
+    94→    94→<button class="fab" aria-label="Create note" title="Create note" onclick="openEditor()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg></button>
+    95→    95→</div>
+    96→    96→
+    97→    97→<div id="editorOverlay" class="overlay" onclick="overlayClose(event)"><div class="editor" onclick="event.stopPropagation()">
+    98→    98→  <div class="editor-head"><input id="editorTitle" class="editor-title" placeholder="Title"><button class="icon-btn" title="Pin" onclick="togglePinEditor()"><svg id="pinIcon" viewBox="0 0 24 24" width="18" height="18"><path d="m14 3 7 7-3 1-4 4v5l-2 1-2-6-4-4-3 1 7-9Z"/></svg></button><button class="icon-btn" title="Close" onclick="closeEditor()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+    99→    99→  <div class="editor-body">
+   100→   100→    <div class="editor-toolbar">
+   101→   101→      <button class="pill-btn" onclick="formatText('bold')"><b>B</b></button><button class="pill-btn" onclick="formatText('italic')"><i>I</i></button><button class="pill-btn" onclick="formatText('underline')"><u>U</u></button>
+   102→   102→      <button class="pill-btn" onclick="insertChecklist()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 2 2 4-5"/></svg> Checklist</button>
+   103→   103→      <button class="pill-btn" onclick="openReminder()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg> Reminder</button>
+   104→   104→      <button class="pill-btn" onclick="openLabelPicker()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5v6l9 9 7-7-9-9H4Z"/><circle cx="8" cy="8" r="1"/></svg> Label</button>
+   105→   105→      <button class="pill-btn" onclick="duplicateCurrent()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg> Copy</button>
+   106→   106→    </div>
+   107→   107→    <div id="richEditor" contenteditable="true" class="editor-text" data-placeholder="Take a note..."></div>
+   108→   108→    <div id="checkEditor" class="check-editor"></div>
+   109→   109→    <div class="colorbar"><span style="font-size:12px;color:#777">Color</span><button class="color-dot" style="background:#fff" data-color="" title="Default" onclick="selectColor(this,'')"></button><button class="color-dot" style="background:#fff8d8" data-color="yellow" title="Yellow" onclick="selectColor(this,'yellow')"></button><button class="color-dot" style="background:#e5f5e9" data-color="green" title="Green" onclick="selectColor(this,'green')"></button><button class="color-dot" style="background:#e7f0ff" data-color="blue" title="Blue" onclick="selectColor(this,'blue')"></button><button class="color-dot" style="background:#f3e8ff" data-color="purple" title="Purple" onclick="selectColor(this,'purple')"></button><button class="color-dot" style="background:#ffe7ef" data-color="pink" title="Pink" onclick="selectColor(this,'pink')"></button><button class="color-dot" style="background:#f4f5f7" data-color="gray" title="Gray" onclick="selectColor(this,'gray')"></button></div>
+   110→   110→    <div id="editorLabels" class="chips"></div>
+   111→   111→    <div id="reminderText" class="reminder-box" style="display:none"><div class="reminder-box-left"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span id="reminderValue"></span></div><button class="tiny-btn" title="Remove reminder" onclick="clearReminder()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+   112→   112→  </div>
+   113→   113→  <div class="editor-footer"><div class="footer-left"><button id="editorDeleteBtn" class="icon-btn danger" title="Move to trash" onclick="editorDeleteAction()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14M9 7V4h6v3"/></svg></button><button class="icon-btn" title="Archive" onclick="archiveCurrent()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3zM9 12h6"/></svg></button><span id="saveStatus" class="save-status">Saved</span></div><div class="footer-right"><button class="secondary" onclick="closeEditor()">Close</button><button class="primary" onclick="saveEditor()">Done</button></div></div>
+   114→   114→</div></div>
+   115→   115→
+   116→   116→<div id="reminderOverlay" class="overlay" onclick="closeReminder(event)"><div class="modal-small" onclick="event.stopPropagation()"><div class="modal-head"><h3>Set reminder</h3><button class="icon-btn" onclick="hideReminder()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div class="reminder-grid"><input id="remDate" type="date"><input id="remTime" type="time"></div><div class="modal-foot"><button class="secondary" onclick="hideReminder()">Cancel</button><button class="primary" onclick="saveReminder()">Set reminder</button></div></div></div>
+   117→   117→
+   118→   118→<div id="labelOverlay" class="overlay" onclick="closeLabelPicker(event)"><div class="modal-small" onclick="event.stopPropagation()"><div class="modal-head"><h3 id="labelModalTitle">Labels</h3><button class="icon-btn" onclick="hideLabelPicker()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="labelPickerList" class="modal-body label-picker-list"></div><div class="label-create"><input id="newLabelInput" placeholder="Create new label"><button class="primary" onclick="createAndAssignLabel()">Add</button></div><div class="modal-foot"><button class="secondary" onclick="hideLabelPicker()">Cancel</button><button class="primary" onclick="applyLabels()">Apply</button></div></div></div>
+   119→   119→
+   120→   120→<div id="labelManagerOverlay" class="overlay" onclick="closeLabelManager(event)"><div class="modal-small" onclick="event.stopPropagation()"><div class="modal-head"><h3>Manage labels</h3><button class="icon-btn" onclick="hideLabelManager()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="labelManagerList" class="modal-body"></div><div class="label-create"><input id="managerLabelInput" placeholder="Create label"><button class="primary" onclick="createManagedLabel()">Add</button></div><div class="modal-foot"><button class="secondary" onclick="hideLabelManager()">Done</button></div></div></div>
+   121→   121→
+   122→   122→<div id="dataMenu" class="menu-panel"><button class="menu-item" onclick="exportNotes();closeMenus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21V9M8 13l4-4 4 4"/><path d="M5 7V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2"/></svg> Export backup</button><button class="menu-item" onclick="document.getElementById('importFile').click();closeMenus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 14v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg> Import backup</button></div>
+   123→   123→<input id="importFile" type="file" accept="application/json,.json" hidden onchange="importNotes(event)">
+   124→   124→<div id="toast" class="toast"></div>
+   125→   125→
+   126→   126→<script>
+   127→   127→const KEY='notes-pro-demo-v1';
+   128→   128→const LABEL_KEY='notes-pro-labels-v2';
+   129→   129→const defaultLabels=['Personal','Work','Travel','Ideas'];
+   130→   130→let notes=loadNotes();
+   131→   131→let labels=loadLabels();
+   132→   132→let filter='notes',currentId=null,currentColor='',currentPinned=false,pendingLabels=[];
+   133→   133→
+   134→   134→const ICONS={
+   135→   135→ check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 2 2 4-5"/></svg>',
+   136→   136→ trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>',
+   137→   137→ archive:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3zM9 12h6"/></svg>',
+   138→   138→ restore:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7v5h5"/><path d="M5 12a7 7 0 1 0 2-5"/><path d="M12 8v5l3 2"/></svg>',
+   139→   139→ duplicate:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+   140→   140→ more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>'
+   141→   141→};
+   142→   142→
+   143→   143→function loadNotes(){
+   144→   144→ try{
+   145→   145→  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+   146→   146→  if(Array.isArray(saved)) return saved.map(migrateNote);
+   147→   147→ }catch(e){}
+   148→   148→ return [
+   149→   149→  {id:1,title:'Welcome to Notes',body:'A cleaner, powerful notes workspace. Click this card to edit it.',pinned:true,archive:false,trash:false,color:'yellow',labels:['Personal'],reminder:'',updated:Date.now()-1200000,created:Date.now()-86400000},
+   150→   150→  {id:2,title:'Project Ideas',body:'Build the new media dashboard\nImprove mobile UX\nAdd offline mode',pinned:false,archive:false,trash:false,color:'blue',labels:['Work'],reminder:'',updated:Date.now()-2700000,created:Date.now()-14400000},
+   151→   151→  {id:3,title:'Shopping list',body:'☐ Milk\n☐ Rice\n☐ Eggs\n☐ Fruits',pinned:true,archive:false,trash:false,color:'green',labels:['Personal'],reminder:'',updated:Date.now()-5700000,created:Date.now()-32400000},
+   152→   152→  {id:4,title:'Travel',body:'Things to remember before the trip: tickets, ID, charger, power bank.',pinned:false,archive:true,trash:false,color:'purple',labels:['Travel'],reminder:'',updated:Date.now()-18000000,created:Date.now()-93600000},
+   153→   153→  {id:5,title:'Old note',body:'Move this to Trash when it is no longer needed.',pinned:false,archive:false,trash:true,color:'gray',labels:[],reminder:'',updated:Date.now()-108000000,created:Date.now()-288000000,trashAt:Date.now()-108000000}
+   154→   154→ ];
+   155→   155→}
+   156→   156→function migrateNote(n){
+   157→   157→ const out={...n};
+   158→   158→ if(!Array.isArray(out.labels)) out.labels=out.label?[String(out.label)]:[];
+   159→   159→ delete out.label;
+   160→   160→ out.title=String(out.title||'');out.body=normalizeBody(out.body||'');out.pinned=!!out.pinned;out.archive=!!out.archive;out.trash=!!out.trash;out.color=out.color||'';out.reminder=out.reminder||'';out.created=out.created||Date.now();out.updated=out.updated||out.created;
+   161→   161→ if(out.trash && !out.trashAt) out.trashAt=out.updated;
+   162→   162→ return out;
+   163→   163→}
+   164→   164→function loadLabels(){
+   165→   165→ try{const a=JSON.parse(localStorage.getItem(LABEL_KEY)||'null');if(Array.isArray(a))return Array.from(new Set([...defaultLabels,...a.map(String).map(x=>x.trim()).filter(Boolean)]));}catch(e){}
+   166→   166→ return [...defaultLabels];
+   167→   167→}
+   168→   168→function persist(){localStorage.setItem(KEY,JSON.stringify(notes));localStorage.setItem(LABEL_KEY,JSON.stringify(labels))}
+   169→   169→function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+   170→   170→function normalizeBody(body){return String(body??'').replace(/\\n/g,'\n').replace(/\r\n/g,'\n').replace(/\r/g,'\n')}
+   171→   171→function timeAgo(ts){const d=Date.now()-Number(ts||Date.now()),m=Math.floor(d/60000);if(m<1)return'Just now';if(m<60)return`${m}m ago`;const h=Math.floor(m/60);if(h<24)return`${h}h ago`;const day=Math.floor(h/24);if(day<7)return`${day}d ago`;return new Date(ts).toLocaleDateString()}
+   172→   172→function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(window._toast);window._toast=setTimeout(()=>t.classList.remove('show'),1800)}
+   173→   173→
+   174→   174→function renderLabels(){
+   175→   175→ const counts={};notes.filter(n=>!n.trash).forEach(n=>n.labels.forEach(l=>counts[l]=(counts[l]||0)+1));
+   176→   176→ document.getElementById('labels').innerHTML=labels.map(l=>`<div class="label-row ${filter==='label:'+l?'active':''}" onclick="setLabelFilter(${JSON.stringify(l)})"><span class="label-dot" style="background:${labelColor(l)}"></span><span class="label-name">${esc(l)}</span><span class="label-count">${counts[l]||0}</span></div>`).join('');
+   177→   177→}
+   178→   178→function labelColor(l){return({Personal:'#fbbc04',Work:'#1a73e8',Travel:'#34a853',Ideas:'#a142f4'})[l]||'#9aa0a6'}
+   179→   179→function setLabelFilter(label){filter='label:'+label;document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));document.getElementById('viewTitle').textContent=label;document.getElementById('viewSub').textContent='Notes with this label';renderLabels();renderNotes();toggleSidebar(false)}
+   180→   180→function setFilter(f,btn){filter=f;document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const titles={notes:['Notes','Your notes, checklists and reminders'],reminders:['Reminders','Notes with a reminder'],archive:['Archive','Archived notes'],trash:['Trash','Restore or permanently delete notes']};document.getElementById('viewTitle').textContent=(titles[f]||['Notes',''])[0];document.getElementById('viewSub').textContent=(titles[f]||['',''])[1];renderLabels();renderNotes();toggleSidebar(false)}
+   181→   181→function noteMatches(n,q){return !q||(n.title+' '+n.body+' '+n.labels.join(' ')).toLowerCase().includes(q)}
+   182→   182→function filtered(){
+   183→   183→ const q=document.getElementById('search').value.trim().toLowerCase();let arr=notes.filter(n=>noteMatches(n,q));
+   184→   184→ if(filter==='notes')arr=arr.filter(n=>!n.archive&&!n.trash);else if(filter==='archive')arr=arr.filter(n=>n.archive&&!n.trash);else if(filter==='trash')arr=arr.filter(n=>n.trash);else if(filter==='reminders')arr=arr.filter(n=>n.reminder&&!n.trash);else if(filter.startsWith('label:'))arr=arr.filter(n=>n.labels.includes(filter.slice(6))&&!n.trash&&!n.archive);
+   185→   185→ const sort=document.getElementById('sort').value;arr.sort((a,b)=>{if(a.pinned!==b.pinned)return Number(b.pinned)-Number(a.pinned);if(sort==='title')return a.title.localeCompare(b.title);return(sort==='created'?b.created-a.created:b.updated-a.updated)});return arr;
+   186→   186→}
+   187→   187→function checklistInfo(body){const lines=normalizeBody(body).split('\n');const items=lines.filter(x=>/^\s*[☐☑]\s*/.test(x));const done=items.filter(x=>/^\s*☑\s*/.test(x)).length;return{lines,items,done,total:items.length}}
+   188→   188→function renderCard(n){
+   189→   189→ const info=checklistInfo(n.body),lines=info.lines;let items='';
+   190→   190→ if(info.total){items='<div class="check-list">'+lines.map((line,i)=>{if(!line.trim())return'';const m=line.trim().match(/^([☐☑])\s*(.*)$/);if(m){const done=m[1]==='☑',txt=m[2];return `<div class="check-item"><input type="checkbox" ${done?'checked':''} onclick="event.stopPropagation()" onchange="toggleChecklist(${n.id},${i},this.checked)"><span>${esc(txt)}</span></div>`}return `<div class="note-line">${esc(line)}</div>`}).join('')+'</div><div class="check-progress">${info.done}/${info.total} completed</div>';
+   191→   191→ }else items=`<p>${esc(n.body).replace(/\n/g,'<br>')||'<span style="color:#9aa0a6">Empty note</span>'}</p>`;
+   192→   192→ const chips=n.labels.length?`<div class="chips">${n.labels.map(l=>`<span class="chip"><span class="label-dot" style="width:7px;height:7px;background:${labelColor(l)}"></span>${esc(l)}</span>`).join('')}</div>`:'';
+   193→   193→ const meta=n.reminder?`<div class="card-meta"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>${esc(new Date(n.reminder).toLocaleString())}</span></div>`:'';
+   194→   194→ const isTrash=filter==='trash';
+   195→   195→ return `<article class="card color-${n.color||''}" onclick="openEditor(${n.id})">
+   196→   196→  <button class="icon-btn pin-top" title="${n.pinned?'Unpin':'Pin'}" onclick="event.stopPropagation();togglePin(${n.id})">${n.pinned?'<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="m14 3 7 7-3 1-4 4v5l-2 1-2-6-4-4-3 1 7-9Z"/></svg>':'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m14 3 7 7-3 1-4 4v5l-2 1-2-6-4-4-3 1 7-9Z"/></svg>'}</button>
+   197→   197→  <button class="icon-btn menu-top" title="More" onclick="event.stopPropagation();openCardMenu(event,${n.id})">${ICONS.more}</button>
+   198→   198→  <h3>${esc(n.title||'Untitled')}</h3>${items}${chips}${meta}<div class="card-meta">${timeAgo(n.updated)}</div>
+   199→   199→  <div class="card-actions"><button class="card-action normal-only" title="${n.archive?'Unarchive':'Archive'}" onclick="event.stopPropagation();toggleArchive(${n.id})">${ICONS.archive}</button><button class="card-action normal-only" title="Move to trash" onclick="event.stopPropagation();moveTrash(${n.id})">${ICONS.trash}</button><button class="card-action normal-only" title="Duplicate" onclick="event.stopPropagation();duplicateNote(${n.id})">${ICONS.duplicate}</button><span class="trash-actions"><button class="card-action" title="Restore" onclick="event.stopPropagation();restoreNote(${n.id})">${ICONS.restore}</button><button class="card-action" title="Delete permanently" onclick="event.stopPropagation();permanentDelete(${n.id})">${ICONS.trash}</button></span></div>
+   200→   200→ </article>`;
+
+[showing lines 1-200 of 295; use offset=201 with limit to continue reading]

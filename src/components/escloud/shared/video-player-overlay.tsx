@@ -2,9 +2,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useUIStore } from "@/stores/ui";
 import { Button } from "@/components/ui/button";
-import { X, Loader2, ChevronUp, ChevronDown, Smartphone, Monitor } from "lucide-react";
+import { X, ChevronUp, ChevronDown, Smartphone, Monitor } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 import { saveWatchProgress } from "./use-media-list";
 import type { ApiMediaItem } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,16 +27,17 @@ interface Props {
 
 /**
  * ReelsFeed — TikTok / Instagram Reels style vertical feed.
+ *
  * Each video occupies the full viewport. CSS scroll-snap handles the swipe.
- * IntersectionObserver autoplays the visible video and pauses the others.
- * The next video is preloaded to minimize buffering.
- * Vidstack provides play/pause, seek, volume, speed, quality, subtitles, PiP, fullscreen.
+ * IntersectionObserver notifies items when they become active. Each item
+ * manages its own playback based on the `active` prop (this avoids the
+ * "this.$state[prop] is not a function" error that occurs when an external
+ * component tries to call methods on a player instance whose internal
+ * signal store has been disposed or not yet initialized).
  */
 function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; startIndex: number; onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
-  // Player instances captured via ref-callbacks so the feed can control play/pause on scroll
-  const playerRefs = useRef<Map<number, MediaPlayerInstance>>(new Map());
   const [activeIndex, setActiveIndex] = useState(startIndex);
   const [showChrome, setShowChrome] = useState(true);
   const hideChromeTimer = useRef<any>(null);
@@ -50,7 +50,8 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
     }
   }, [startIndex]);
 
-  // IntersectionObserver — autoplay active video, pause others
+  // IntersectionObserver — just track which item is active.
+  // Each item handles its own play/pause based on the `active` prop.
   useEffect(() => {
     const opts: IntersectionObserverInit = {
       root: containerRef.current,
@@ -61,43 +62,12 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
         const idx = Number((e.target as HTMLElement).dataset.index);
         if (e.isIntersecting && e.intersectionRatio >= 0.6) {
           setActiveIndex(idx);
-          // Pause all other players
-          playerRefs.current.forEach((p, i) => {
-            if (i !== idx && p?.state?.playing) {
-              try { p.remoteControl.pause(); } catch {}
-            }
-          });
-          // Play this one (the user already performed a click gesture when opening the overlay,
-          // so unmuted autoplay should be allowed by the browser)
-          const p = playerRefs.current.get(idx);
-          if (p && !p.state?.playing) {
-            try { p.remoteControl.play(); } catch {}
-          }
-        } else {
-          // Pause the one leaving the viewport
-          const p = playerRefs.current.get(idx);
-          if (p?.state?.playing) {
-            try { p.remoteControl.pause(); } catch {}
-          }
         }
       }
     }, opts);
     itemRefs.current.forEach((el) => el && obs.observe(el));
     return () => obs.disconnect();
   }, [items.length]);
-
-  // Save watch progress when active video changes
-  useEffect(() => {
-    const active = items[activeIndex];
-    if (!active) return;
-    const id = setInterval(() => {
-      const p = playerRefs.current.get(activeIndex);
-      if (p && p.state?.playing) {
-        saveWatchProgress(active.id, p.state.currentTime ?? 0, p.state.duration ?? undefined);
-      }
-    }, 10000);
-    return () => clearInterval(id);
-  }, [activeIndex, items]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -130,16 +100,6 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
   useEffect(() => {
     pokeChrome();
     return () => { if (hideChromeTimer.current) clearTimeout(hideChromeTimer.current); };
-  }, []);
-
-  // Cleanup all players on unmount
-  useEffect(() => {
-    return () => {
-      playerRefs.current.forEach((p) => {
-        try { p?.destroy(); } catch {}
-      });
-      playerRefs.current.clear();
-    };
   }, []);
 
   return (
@@ -210,10 +170,6 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
           >
             <ReelsVideoItem
               media={m}
-              attachRef={(p) => {
-                if (p) playerRefs.current.set(i, p);
-                else playerRefs.current.delete(i);
-              }}
               active={i === activeIndex}
               preload={shouldPreload ? "auto" : "metadata"}
             />
@@ -226,22 +182,74 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
 
 /**
  * ReelsVideoItem — a single full-viewport Vidstack player.
- * Captures the player instance so the parent feed can control it (play/pause on scroll).
+ *
+ * Self-contained: it manages its own playback based on the `active` prop.
+ * It calls `player.play()` only after `onCanPlay` fires, and `player.pause()`
+ * when `active` becomes false. All player method calls are wrapped in try/catch
+ * to avoid leaking internal Vidstack signal errors when the underlying instance
+ * is being disposed or not yet ready.
  */
 function ReelsVideoItem({
   media,
-  attachRef,
   active,
   preload,
 }: {
   media: ApiMediaItem;
-  attachRef: (p: MediaPlayerInstance | null) => void;
   active: boolean;
   preload: "auto" | "metadata" | "none";
 }) {
-  const [textTracks] = useState<any[]>([]); // Future: real VTT tracks via API
+  const playerRef = useRef<MediaPlayerInstance | null>(null);
+  const [textTracks] = useState<any[]>([]);
+  const [ready, setReady] = useState(false);
   const src = `/api/media/${media.id}/stream`;
   const poster = media.thumbnailUrl ?? undefined;
+
+  // Track playback time for watch-progress persistence
+  const lastSavedRef = useRef(0);
+
+  // When `active` changes, play or pause accordingly.
+  useEffect(() => {
+    const p = playerRef.current;
+    if (!p) return;
+    // Use a small delay to let the player finish any internal state transitions
+    const t = setTimeout(() => {
+      try {
+        if (active && ready) {
+          p.remoteControl.play();
+        } else if (!active) {
+          p.remoteControl.pause();
+        }
+      } catch {
+        // Ignore — player may not be ready yet
+      }
+    }, 50);
+    return () => clearTimeout(t);
+  }, [active, ready]);
+
+  // Periodically save watch progress while this video is the active one
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => {
+      const p = playerRef.current;
+      if (!p) return;
+      try {
+        // Use the player's internal state via the public method (avoids signal
+        // subscription errors). The MediaPlayerInstance exposes `state` as a
+        // getter that returns the current snapshot.
+        const state = p.state;
+        if (state?.playing) {
+          const pos = state.currentTime ?? 0;
+          if (Math.abs(pos - lastSavedRef.current) >= 5) {
+            lastSavedRef.current = pos;
+            saveWatchProgress(media.id, pos, state.duration ?? undefined);
+          }
+        }
+      } catch {
+        // Ignore — state may not be available yet
+      }
+    }, 10000);
+    return () => clearInterval(id);
+  }, [active, media.id]);
 
   return (
     <div className="w-full h-full flex items-center justify-center">
@@ -254,11 +262,17 @@ function ReelsVideoItem({
           logLevel="warn"
           crossOrigin
           playsInline
-          autoPlay={active}
           preload={preload}
           title={media.name}
           poster={poster}
-          ref={attachRef}
+          ref={(p) => { playerRef.current = p; }}
+          onCanPlay={() => {
+            setReady(true);
+            // If this item is already active by the time can-play fires, start playing
+            if (active) {
+              try { playerRef.current?.remoteControl.play(); } catch {}
+            }
+          }}
         >
           <MediaProvider>
             <Poster className="vds-poster" />
@@ -281,13 +295,24 @@ function StandardPlayer({ media, onClose }: { media: ApiMediaItem; onClose: () =
   const poster = media.thumbnailUrl ?? undefined;
   const [textTracks] = useState<any[]>([]);
   const playerRef = useRef<MediaPlayerInstance | null>(null);
+  const lastSavedRef = useRef(0);
 
   // Save watch progress periodically
   useEffect(() => {
     const id = setInterval(() => {
       const p = playerRef.current;
-      if (p && p.state?.playing) {
-        saveWatchProgress(media.id, p.state.currentTime ?? 0, p.state.duration ?? undefined);
+      if (!p) return;
+      try {
+        const state = p.state;
+        if (state?.playing) {
+          const pos = state.currentTime ?? 0;
+          if (Math.abs(pos - lastSavedRef.current) >= 5) {
+            lastSavedRef.current = pos;
+            saveWatchProgress(media.id, pos, state.duration ?? undefined);
+          }
+        }
+      } catch {
+        // Ignore
       }
     }, 10000);
     return () => clearInterval(id);

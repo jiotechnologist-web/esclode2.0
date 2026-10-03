@@ -35,3 +35,44 @@ Stage Summary:
 - Video player: COMPLETELY REPLACED with Vidstack Reels-style player (TikTok/IG style scroll-snap feed + standard mode, full Vidstack controls)
 - Notepad: COMPLETELY REPLACED with Tiptap rich-text editor (B/I/H1/H2/lists/quote/undo/redo)
 - All changes verified end-to-end; dev server runs without errors
+
+---
+Task ID: master-v2
+Agent: Super Z (main)
+Task: Fix Vidstack runtime error + replace Notepad with Pro Keep Style notes app
+
+Work Log:
+- Diagnosed "this.$state[prop] is not a function" Vidstack error — caused by externally accessing player.state / calling remoteControl methods on instances whose internal signal store wasn't initialized or had been disposed
+- Rewrote video-player-overlay.tsx so each ReelsVideoItem manages its own playback based on the `active` prop:
+  * IntersectionObserver in parent only sets the active index (no imperative API calls from outside)
+  * Each item uses onCanPlay event to know when it's ready, then plays if active
+  * useEffect on `active` toggles play/pause with a small debounce, wrapped in try/catch
+  * Watch-progress save is wrapped in try/catch and reads state via the public getter
+- Deleted old src/components/escloud/shared/notepad.tsx (Tiptap editor)
+- Extended Prisma Note model with: archive (Bool), trash (Bool), trashAt (DateTime?), labels (String JSON), reminder (DateTime?)
+- Ran `bun run db:push` to apply schema to DB; ran `bun run db:generate` for Prisma client
+- Rewrote /api/notes route to support the new fields (POST/PATCH/GET all include archive, trash, labels, reminder, trashAt)
+- Built a brand-new Pro Keep Style NotesView (1412 lines) based on the user's pasted HTML design:
+  * Sidebar with Notes / Reminders / Archive / Trash + dynamic Labels list with counts
+  * Topbar with search, sort dropdown (updated/created/title), grid/list toggle, Import/Export menu, New note button
+  * Mobile: sidebar collapses into a drawer (hamburger menu); FAB at bottom-right for new note
+  * Notes grid with color cards (yellow/green/blue/pink/purple/gray/default)
+  * Pinned section + Others section
+  * Each card: pin toggle, more menu (open/duplicate/archive/trash/restore/permanent-delete), title, body, checklist rendering with live checkboxes, labels chips, reminder badge, time-ago
+  * Editor modal: title input, rich-text toolbar (bold/italic/underline via execCommand, checklist, reminder, label, copy), textarea body, visual checklist editor when body contains ☐/☑ lines, label chips, reminder display, color picker
+  * Reminder modal: date + time picker, save/remove
+  * Label picker modal: list with checkboxes, create-new label input
+  * Trash view: restore/permanent-delete actions, "Empty trash" button in sidebar
+  * Import/Export backup as JSON
+- Verified end-to-end:
+  * Created note with checklist + label + reminder ✓
+  * Archive → trash → restore flow ✓
+  * Vidstack video player compiles without errors ✓
+  * Stream API still 200 OK ✓
+  * Move-to-private/public flow still works ✓
+
+Stage Summary:
+- Vidstack error FIXED: each ReelsVideoItem is now self-contained and uses onCanPlay + useEffect to control playback (no external state access)
+- Notepad REPLACED: deleted old Tiptap notepad; new Pro Keep Style NotesView with sidebar, search, sort, grid/list, archive, trash, labels, reminders, checklist rendering, import/export — fully mobile responsive
+- Prisma schema extended with new Note fields (archive, trash, trashAt, labels, reminder); API supports all of them
+- All changes compile cleanly; dev server runs without errors

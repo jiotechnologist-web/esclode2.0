@@ -1,0 +1,250 @@
+.editor-body{padding:20px}.editor-toolbar{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:13px}.pill-btn{height:36px;min-width:36px;padding:0 10px;border:1px solid var(--line);background:var(--surface);border-radius:9px;display:inline-flex;align-items:center;justify-content:center;gap:7px;color:#4b5563}.pill-btn:hover{background:#f7f8f9}.pill-btn.active{background:var(--accent-soft);border-color:#bfd4fb;color:var(--accent)}.pill-btn svg{width:16px;height:16px;flex:none}
+.editor-text{width:100%;min-height:280px;resize:vertical;border:0;outline:0;font-size:16px;line-height:1.65;white-space:pre-wrap;word-break:break-word}.editor-text:empty:before{content:attr(data-placeholder);color:#a1a7ad}.check-editor{display:none;margin-top:8px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface2)}.check-editor.show{display:block}.check-editor-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}.check-editor-title{font-size:12px;font-weight:700;color:#6b7280}.check-row{display:flex;gap:7px;margin-bottom:8px;align-items:center}.check-row input[type=checkbox]{width:17px;height:17px;accent-color:var(--accent)}.check-row input[type=text]{flex:1;height:37px;border:1px solid var(--line);border-radius:8px;padding:0 10px;outline:none;background:var(--surface);color:var(--text)}
+.colorbar{display:flex;gap:8px;align-items:center;padding-top:13px;margin-top:14px;border-top:1px solid var(--line)}.color-dot{width:28px;height:28px;border-radius:50%;border:2px solid transparent}.color-dot:hover{transform:scale(1.04)}.color-dot.selected{border-color:#1f2937}.reminder-box{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:12px;padding:10px;border-radius:10px;background:var(--surface2);font-size:13px}.reminder-box-left{display:flex;align-items:center;gap:7px;min-width:0}.reminder-box span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.editor-footer{display:flex;justify-content:space-between;align-items:center;padding:13px 18px;border-top:1px solid var(--line);position:sticky;bottom:0;background:var(--surface)}.footer-left,.footer-right{display:flex;gap:4px;align-items:center}.save-status{font-size:12px;color:#8b9096}.primary{background:#1a73e8;color:#fff;border:0;border-radius:9px;height:38px;padding:0 15px;font-weight:650}.secondary{background:var(--surface);border:1px solid var(--line);height:38px;border-radius:9px;padding:0 13px;color:#4b5563}.danger-text{color:var(--danger)!important}
+.modal-small{width:min(560px,100%);background:var(--surface);border-radius:17px;box-shadow:0 20px 60px rgba(0,0,0,.25);padding:20px;border:1px solid var(--line)}.modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:15px}.modal-head h3{margin:0;font-size:18px}.modal-body{max-height:55vh;overflow:auto}.reminder-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.reminder-grid input,.label-create input{height:42px;border:1px solid var(--line);border-radius:9px;padding:0 10px;background:var(--surface);color:var(--text);outline:none}.modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px}.label-picker-list{display:flex;flex-direction:column;gap:6px}.label-option{display:flex;align-items:center;gap:10px;padding:9px;border-radius:10px}.label-option:hover{background:var(--surface2)}.label-option input{width:17px;height:17px;accent-color:var(--accent)}.label-create{display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}.label-create input{flex:1}
+.menu-panel{position:fixed;z-index:170;min-width:180px;padding:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 35px rgba(0,0,0,.18);display:none}.menu-panel.show{display:block}.menu-item{width:100%;display:flex;align-items:center;gap:9px;padding:9px 10px;border:0;background:transparent;border-radius:8px;color:#4b5563;text-align:left;font-size:13px}.menu-item:hover{background:var(--surface2)}.menu-item svg{width:16px;height:16px;flex:none}.menu-item.danger{color:var(--danger)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#202124;color:#fff;padding:10px 15px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;transition:.2s;z-index:220}.toast.show{opacity:1;transform:translate(-50%,0)}
+.backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.2);z-index:45}.backdrop.show{display:block}
+@media(max-width:900px){.brand{min-width:auto}.brand strong{display:none}.menu-btn{display:grid}.sidebar{position:fixed;top:70px;bottom:0;left:0;transform:translateX(-105%);box-shadow:12px 0 25px rgba(0,0,0,.08)}.sidebar.open{transform:none}.main{padding:20px 15px 90px}.search{max-width:none}.notes-grid{grid-template-columns:repeat(auto-fill,minmax(195px,1fr))}}
+@media(max-width:560px){.topbar{height:62px;padding:0 10px}.body{min-height:calc(100vh - 62px)}.sidebar{top:62px}.toolbar .hide-sm{display:none}.main{padding:15px 10px 85px}.view-head{align-items:flex-start}.view-actions{justify-content:flex-end}.notes-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.card{padding:12px;border-radius:12px}.card h3{font-size:14px}.card p,.note-line,.check-item{font-size:13px}.card-actions{opacity:1;transform:none}.fab{right:17px;bottom:17px;width:54px;height:54px;border-radius:16px}.editor{max-height:96vh;border-radius:15px}.editor-body{padding:15px}.reminder-grid{grid-template-columns:1fr}.search{height:42px}.view-sub{max-width:52vw}.menu-panel{max-width:calc(100vw - 20px)}}
+.dark{--bg:#202124;--surface:#202124;--surface2:#292a2d;--text:#e8eaed;--muted:#9aa0a6;--line:#3c4043}.dark .topbar{background:rgba(32,33,36,.92)}.dark .search{background:#303134}.dark .search:focus-within{background:#202124;border-color:#5f6368}.dark .nav-btn,.dark .label-row,.dark .pill-btn,.dark .toolbar-btn,.dark .secondary,.dark .select,.dark .card-action{color:#c6c9ce}.dark .nav-btn:hover,.dark .label-row:hover,.dark .pill-btn:hover,.dark .toolbar-btn:hover,.dark .tiny-btn:hover,.dark .icon-btn:hover{background:#303134}.dark .card p,.dark .note-line{color:#d2d5d8}.dark .color-yellow{background:#4b411d}.dark .color-green{background:#203a28}.dark .color-blue{background:#20344f}.dark .color-purple{background:#392949}.dark .color-pink{background:#4c2733}.dark .color-gray{background:#2a2d31}.dark .card{border-color:#45484d}.dark .card-action{background:rgba(32,33,36,.62)}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <button class="icon-btn menu-btn" aria-label="Menu" title="Menu" onclick="toggleSidebar()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+  <div class="brand"><div class="logo"><svg viewBox="0 0 24 24" width="21" height="21" fill="currentColor"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Z"/></svg></div><strong>Notes</strong></div>
+  <label class="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input id="search" placeholder="Search your notes..." oninput="renderNotes()"></label>
+  <div class="toolbar">
+    <button class="icon-btn hide-sm" title="Refresh" onclick="renderNotes()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8.1 8.1 0 0 0-15.7-2M4 4v5h5"/><path d="M4 13a8.1 8.1 0 0 0 15.7 2M20 20v-5h-5"/></svg></button>
+    <button class="icon-btn hide-sm" title="Import / Export" onclick="openDataMenu(event)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg></button>
+    <button class="icon-btn hide-sm" title="Grid / List" onclick="toggleView()"><svg id="viewIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg></button>
+    <button class="icon-btn" title="Dark mode" onclick="toggleDark()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3 6.7 6.7 0 0 0 21 12.8Z"/></svg></button>
+    <div class="profile">U</div>
+  </div>
+</header>
+<div class="body">
+<aside id="sidebar" class="sidebar">
+  <nav>
+    <button class="nav-btn active" data-filter="notes" onclick="setFilter('notes',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5a2 2 0 0 1 2-2h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v7h6"/></svg> Notes <span class="label-count" id="countNotes"></span></button>
+    <button class="nav-btn" data-filter="reminders" onclick="setFilter('reminders',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg> Reminders</button>
+    <button class="nav-btn" data-filter="archive" onclick="setFilter('archive',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3zM9 12h6"/></svg> Archive</button>
+    <button class="nav-btn" data-filter="trash" onclick="setFilter('trash',this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14M9 7V4h6v3"/></svg> Trash <span class="label-count" id="countTrash"></span></button>
+  </nav>
+  <div class="section-head"><div class="section-label">Labels</div><button class="tiny-btn" title="Manage labels" onclick="openLabelManager()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18"/></svg></button></div>
+  <div id="labels" class="label-list"></div>
+</aside>
+<div id="backdrop" class="backdrop" onclick="toggleSidebar(false)"></div>
+<main class="main"><div class="main-inner">
+  <div class="view-head">
+    <div><div class="view-title" id="viewTitle">Notes</div><div class="view-sub" id="viewSub">Your notes, checklists and reminders</div></div>
+    <div class="view-actions">
+      <div class="sort-row">Sort <select class="select" id="sort" onchange="renderNotes()"><option value="updated">Recently updated</option><option value="created">Recently created</option><option value="title">Title A–Z</option></select></div>
+      <button id="emptyTrashBtn" class="toolbar-btn" style="display:none" onclick="emptyTrash()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14M9 7V4h6v3"/></svg> Empty trash</button>
+    </div>
+  </div>
+  <section id="notesGrid" class="notes-grid"></section>
+</div></main></div>
+<button class="fab" aria-label="Create note" title="Create note" onclick="openEditor()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
+
+<div id="editorOverlay" class="overlay" onclick="overlayClose(event)"><div class="editor" onclick="event.stopPropagation()">
+  <div class="editor-head"><input id="editorTitle" class="editor-title" placeholder="Title"><button class="icon-btn" title="Pin" onclick="togglePinEditor()"><svg id="pinIcon" viewBox="0 0 24 24" width="18" height="18"><path d="m14 3 7 7-3 1-4 4v5l-2 1-2-6-4-4-3 1 7-9Z"/></svg></button><button class="icon-btn" title="Close" onclick="closeEditor()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+  <div class="editor-body">
+    <div class="editor-toolbar">
+      <button class="pill-btn" onclick="formatText('bold')"><b>B</b></button><button class="pill-btn" onclick="formatText('italic')"><i>I</i></button><button class="pill-btn" onclick="formatText('underline')"><u>U</u></button>
+      <button class="pill-btn" onclick="insertChecklist()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 2 2 4-5"/></svg> Checklist</button>
+      <button class="pill-btn" onclick="openReminder()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg> Reminder</button>
+      <button class="pill-btn" onclick="openLabelPicker()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5v6l9 9 7-7-9-9H4Z"/><circle cx="8" cy="8" r="1"/></svg> Label</button>
+      <button class="pill-btn" onclick="duplicateCurrent()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg> Copy</button>
+    </div>
+    <div id="richEditor" contenteditable="true" class="editor-text" data-placeholder="Take a note..."></div>
+    <div id="checkEditor" class="check-editor"></div>
+    <div class="colorbar"><span style="font-size:12px;color:#777">Color</span><button class="color-dot" style="background:#fff" data-color="" title="Default" onclick="selectColor(this,'')"></button><button class="color-dot" style="background:#fff8d8" data-color="yellow" title="Yellow" onclick="selectColor(this,'yellow')"></button><button class="color-dot" style="background:#e5f5e9" data-color="green" title="Green" onclick="selectColor(this,'green')"></button><button class="color-dot" style="background:#e7f0ff" data-color="blue" title="Blue" onclick="selectColor(this,'blue')"></button><button class="color-dot" style="background:#f3e8ff" data-color="purple" title="Purple" onclick="selectColor(this,'purple')"></button><button class="color-dot" style="background:#ffe7ef" data-color="pink" title="Pink" onclick="selectColor(this,'pink')"></button><button class="color-dot" style="background:#f4f5f7" data-color="gray" title="Gray" onclick="selectColor(this,'gray')"></button></div>
+    <div id="editorLabels" class="chips"></div>
+    <div id="reminderText" class="reminder-box" style="display:none"><div class="reminder-box-left"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span id="reminderValue"></span></div><button class="tiny-btn" title="Remove reminder" onclick="clearReminder()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div>
+  </div>
+  <div class="editor-footer"><div class="footer-left"><button id="editorDeleteBtn" class="icon-btn danger" title="Move to trash" onclick="editorDeleteAction()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14M9 7V4h6v3"/></svg></button><button class="icon-btn" title="Archive" onclick="archiveCurrent()"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3zM9 12h6"/></svg></button><span id="saveStatus" class="save-status">Saved</span></div><div class="footer-right"><button class="secondary" onclick="closeEditor()">Close</button><button class="primary" onclick="saveEditor()">Done</button></div></div>
+</div></div>
+
+<div id="reminderOverlay" class="overlay" onclick="closeReminder(event)"><div class="modal-small" onclick="event.stopPropagation()"><div class="modal-head"><h3>Set reminder</h3><button class="icon-btn" onclick="hideReminder()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div class="reminder-grid"><input id="remDate" type="date"><input id="remTime" type="time"></div><div class="modal-foot"><button class="secondary" onclick="hideReminder()">Cancel</button><button class="primary" onclick="saveReminder()">Set reminder</button></div></div></div>
+
+<div id="labelOverlay" class="overlay" onclick="closeLabelPicker(event)"><div class="modal-small" onclick="event.stopPropagation()"><div class="modal-head"><h3 id="labelModalTitle">Labels</h3><button class="icon-btn" onclick="hideLabelPicker()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="labelPickerList" class="modal-body label-picker-list"></div><div class="label-create"><input id="newLabelInput" placeholder="Create new label"><button class="primary" onclick="createAndAssignLabel()">Add</button></div><div class="modal-foot"><button class="secondary" onclick="hideLabelPicker()">Cancel</button><button class="primary" onclick="applyLabels()">Apply</button></div></div></div>
+
+<div id="labelManagerOverlay" class="overlay" onclick="closeLabelManager(event)"><div class="modal-small" onclick="event.stopPropagation()"><div class="modal-head"><h3>Manage labels</h3><button class="icon-btn" onclick="hideLabelManager()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m6 6 12 12M18 6 6 18"/></svg></button></div><div id="labelManagerList" class="modal-body"></div><div class="label-create"><input id="managerLabelInput" placeholder="Create label"><button class="primary" onclick="createManagedLabel()">Add</button></div><div class="modal-foot"><button class="secondary" onclick="hideLabelManager()">Done</button></div></div></div>
+
+<div id="dataMenu" class="menu-panel"><button class="menu-item" onclick="exportNotes();closeMenus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 21V9M8 13l4-4 4 4"/><path d="M5 7V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2"/></svg> Export backup</button><button class="menu-item" onclick="document.getElementById('importFile').click();closeMenus()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M5 14v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></svg> Import backup</button></div>
+<input id="importFile" type="file" accept="application/json,.json" hidden onchange="importNotes(event)">
+<div id="toast" class="toast"></div>
+
+<script>
+const KEY='notes-pro-demo-v1';
+const LABEL_KEY='notes-pro-labels-v2';
+const defaultLabels=['Personal','Work','Travel','Ideas'];
+let notes=loadNotes();
+let labels=loadLabels();
+let filter='notes',currentId=null,currentColor='',currentPinned=false,pendingLabels=[];
+
+const ICONS={
+ check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12 2 2 4-5"/></svg>',
+ trash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>',
+ archive:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16v13H4z"/><path d="M3 4h18v3H3zM9 12h6"/></svg>',
+ restore:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7v5h5"/><path d="M5 12a7 7 0 1 0 2-5"/><path d="M12 8v5l3 2"/></svg>',
+ duplicate:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+ more:'<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>'
+};
+
+function loadNotes(){
+ try{
+  const saved=JSON.parse(localStorage.getItem(KEY)||'null');
+  if(Array.isArray(saved)) return saved.map(migrateNote);
+ }catch(e){}
+ return [
+  {id:1,title:'Welcome to Notes',body:'A cleaner, powerful notes workspace. Click this card to edit it.',pinned:true,archive:false,trash:false,color:'yellow',labels:['Personal'],reminder:'',updated:Date.now()-1200000,created:Date.now()-86400000},
+  {id:2,title:'Project Ideas',body:'Build the new media dashboard\nImprove mobile UX\nAdd offline mode',pinned:false,archive:false,trash:false,color:'blue',labels:['Work'],reminder:'',updated:Date.now()-2700000,created:Date.now()-14400000},
+  {id:3,title:'Shopping list',body:'☐ Milk\n☐ Rice\n☐ Eggs\n☐ Fruits',pinned:true,archive:false,trash:false,color:'green',labels:['Personal'],reminder:'',updated:Date.now()-5700000,created:Date.now()-32400000},
+  {id:4,title:'Travel',body:'Things to remember before the trip: tickets, ID, charger, power bank.',pinned:false,archive:true,trash:false,color:'purple',labels:['Travel'],reminder:'',updated:Date.now()-18000000,created:Date.now()-93600000},
+  {id:5,title:'Old note',body:'Move this to Trash when it is no longer needed.',pinned:false,archive:false,trash:true,color:'gray',labels:[],reminder:'',updated:Date.now()-108000000,created:Date.now()-288000000,trashAt:Date.now()-108000000}
+ ];
+}
+function migrateNote(n){
+ const out={...n};
+ if(!Array.isArray(out.labels)) out.labels=out.label?[String(out.label)]:[];
+ delete out.label;
+ out.title=String(out.title||'');out.body=normalizeBody(out.body||'');out.pinned=!!out.pinned;out.archive=!!out.archive;out.trash=!!out.trash;out.color=out.color||'';out.reminder=out.reminder||'';out.created=out.created||Date.now();out.updated=out.updated||out.created;
+ if(out.trash && !out.trashAt) out.trashAt=out.updated;
+ return out;
+}
+function loadLabels(){
+ try{const a=JSON.parse(localStorage.getItem(LABEL_KEY)||'null');if(Array.isArray(a))return Array.from(new Set([...defaultLabels,...a.map(String).map(x=>x.trim()).filter(Boolean)]));}catch(e){}
+ return [...defaultLabels];
+}
+function persist(){localStorage.setItem(KEY,JSON.stringify(notes));localStorage.setItem(LABEL_KEY,JSON.stringify(labels))}
+function esc(v){return String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function normalizeBody(body){return String(body??'').replace(/\\n/g,'\n').replace(/\r\n/g,'\n').replace(/\r/g,'\n')}
+function timeAgo(ts){const d=Date.now()-Number(ts||Date.now()),m=Math.floor(d/60000);if(m<1)return'Just now';if(m<60)return`${m}m ago`;const h=Math.floor(m/60);if(h<24)return`${h}h ago`;const day=Math.floor(h/24);if(day<7)return`${day}d ago`;return new Date(ts).toLocaleDateString()}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(window._toast);window._toast=setTimeout(()=>t.classList.remove('show'),1800)}
+
+function renderLabels(){
+ const counts={};notes.filter(n=>!n.trash).forEach(n=>n.labels.forEach(l=>counts[l]=(counts[l]||0)+1));
+ document.getElementById('labels').innerHTML=labels.map(l=>`<div class="label-row ${filter==='label:'+l?'active':''}" onclick="setLabelFilter(${JSON.stringify(l)})"><span class="label-dot" style="background:${labelColor(l)}"></span><span class="label-name">${esc(l)}</span><span class="label-count">${counts[l]||0}</span></div>`).join('');
+}
+function labelColor(l){return({Personal:'#fbbc04',Work:'#1a73e8',Travel:'#34a853',Ideas:'#a142f4'})[l]||'#9aa0a6'}
+function setLabelFilter(label){filter='label:'+label;document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));document.getElementById('viewTitle').textContent=label;document.getElementById('viewSub').textContent='Notes with this label';renderLabels();renderNotes();toggleSidebar(false)}
+function setFilter(f,btn){filter=f;document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const titles={notes:['Notes','Your notes, checklists and reminders'],reminders:['Reminders','Notes with a reminder'],archive:['Archive','Archived notes'],trash:['Trash','Restore or permanently delete notes']};document.getElementById('viewTitle').textContent=(titles[f]||['Notes',''])[0];document.getElementById('viewSub').textContent=(titles[f]||['',''])[1];renderLabels();renderNotes();toggleSidebar(false)}
+function noteMatches(n,q){return !q||(n.title+' '+n.body+' '+n.labels.join(' ')).toLowerCase().includes(q)}
+function filtered(){
+ const q=document.getElementById('search').value.trim().toLowerCase();let arr=notes.filter(n=>noteMatches(n,q));
+ if(filter==='notes')arr=arr.filter(n=>!n.archive&&!n.trash);else if(filter==='archive')arr=arr.filter(n=>n.archive&&!n.trash);else if(filter==='trash')arr=arr.filter(n=>n.trash);else if(filter==='reminders')arr=arr.filter(n=>n.reminder&&!n.trash);else if(filter.startsWith('label:'))arr=arr.filter(n=>n.labels.includes(filter.slice(6))&&!n.trash&&!n.archive);
+ const sort=document.getElementById('sort').value;arr.sort((a,b)=>{if(a.pinned!==b.pinned)return Number(b.pinned)-Number(a.pinned);if(sort==='title')return a.title.localeCompare(b.title);return(sort==='created'?b.created-a.created:b.updated-a.updated)});return arr;
+}
+function checklistInfo(body){const lines=normalizeBody(body).split('\n');const items=lines.filter(x=>/^\s*[☐☑]\s*/.test(x));const done=items.filter(x=>/^\s*☑\s*/.test(x)).length;return{lines,items,done,total:items.length}}
+function renderCard(n){
+ const info=checklistInfo(n.body),lines=info.lines;let items='';
+ if(info.total){items='<div class="check-list">'+lines.map((line,i)=>{if(!line.trim())return'';const m=line.trim().match(/^([☐☑])\s*(.*)$/);if(m){const done=m[1]==='☑',txt=m[2];return `<div class="check-item"><input type="checkbox" ${done?'checked':''} onclick="event.stopPropagation()" onchange="toggleChecklist(${n.id},${i},this.checked)"><span>${esc(txt)}</span></div>`}return `<div class="note-line">${esc(line)}</div>`}).join('')+'</div><div class="check-progress">${info.done}/${info.total} completed</div>';
+ }else items=`<p>${esc(n.body).replace(/\n/g,'<br>')||'<span style="color:#9aa0a6">Empty note</span>'}</p>`;
+ const chips=n.labels.length?`<div class="chips">${n.labels.map(l=>`<span class="chip"><span class="label-dot" style="width:7px;height:7px;background:${labelColor(l)}"></span>${esc(l)}</span>`).join('')}</div>`:'';
+ const meta=n.reminder?`<div class="card-meta"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg><span>${esc(new Date(n.reminder).toLocaleString())}</span></div>`:'';
+ const isTrash=filter==='trash';
+ return `<article class="card color-${n.color||''}" onclick="openEditor(${n.id})">
+  <button class="icon-btn pin-top" title="${n.pinned?'Unpin':'Pin'}" onclick="event.stopPropagation();togglePin(${n.id})">${n.pinned?'<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="m14 3 7 7-3 1-4 4v5l-2 1-2-6-4-4-3 1 7-9Z"/></svg>':'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m14 3 7 7-3 1-4 4v5l-2 1-2-6-4-4-3 1 7-9Z"/></svg>'}</button>
+  <button class="icon-btn menu-top" title="More" onclick="event.stopPropagation();openCardMenu(event,${n.id})">${ICONS.more}</button>
+  <h3>${esc(n.title||'Untitled')}</h3>${items}${chips}${meta}<div class="card-meta">${timeAgo(n.updated)}</div>
+  <div class="card-actions"><button class="card-action normal-only" title="${n.archive?'Unarchive':'Archive'}" onclick="event.stopPropagation();toggleArchive(${n.id})">${ICONS.archive}</button><button class="card-action normal-only" title="Move to trash" onclick="event.stopPropagation();moveTrash(${n.id})">${ICONS.trash}</button><button class="card-action normal-only" title="Duplicate" onclick="event.stopPropagation();duplicateNote(${n.id})">${ICONS.duplicate}</button><span class="trash-actions"><button class="card-action" title="Restore" onclick="event.stopPropagation();restoreNote(${n.id})">${ICONS.restore}</button><button class="card-action" title="Delete permanently" onclick="event.stopPropagation();permanentDelete(${n.id})">${ICONS.trash}</button></span></div>
+ </article>`;
+}
+function renderNotes(){
+ cleanupOldTrash();
+ const arr=filtered(),grid=document.getElementById('notesGrid');grid.classList.toggle('trash-mode',filter==='trash');
+ grid.innerHTML=arr.length?arr.map(renderCard).join(''):`<div class="empty"><div><div class="empty-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 5a2 2 0 0 1 2-2h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v7h6"/></svg></div><div style="font-weight:650;color:var(--text);margin-bottom:5px">No notes here</div><div>Create a note with the + button.</div></div></div>`;
+ document.getElementById('emptyTrashBtn').style.display=filter==='trash'&&notes.some(n=>n.trash)?'inline-flex':'none';document.getElementById('countNotes').textContent=notes.filter(n=>!n.archive&&!n.trash).length||'';document.getElementById('countTrash').textContent=notes.filter(n=>n.trash).length||'';
+}
+function cleanupOldTrash(){const cutoff=Date.now()-30*24*60*60*1000;const before=notes.length;notes=notes.filter(n=>!(n.trash&&n.trashAt&&n.trashAt<cutoff));if(notes.length!==before)persist()}
+function toggleView(){const g=document.getElementById('notesGrid');g.classList.toggle('list');localStorage.setItem('notes-view-list',g.classList.contains('list')?'1':'0')}
+
+function openEditor(id=null){
+ currentId=id;const n=id?notes.find(x=>x.id===id):null;pendingLabels=[...(n?.labels||[])];currentColor=n?.color||'';currentPinned=!!n?.pinned;document.getElementById('editorTitle').value=n?.title||'';document.getElementById('richEditor').innerText=n?.body||'';renderChecklistEditor(n?.body||'');renderEditorLabels(n?.labels||[]);updateReminderUI(n?.reminder||'');document.getElementById('saveStatus').textContent='Saved';document.getElementById('pinIcon').setAttribute('fill',currentPinned?'currentColor':'none');document.querySelectorAll('.color-dot').forEach(x=>x.classList.toggle('selected',x.dataset.color===currentColor));document.getElementById('editorOverlay').classList.add('show');const del=document.getElementById('editorDeleteBtn');if(del){del.title=n?.trash?'Delete permanently':'Move to trash';del.classList.toggle('danger-text',!!n?.trash)}setTimeout(()=>document.getElementById('editorTitle').focus(),30);
+}
+function closeEditor(){document.getElementById('editorOverlay').classList.remove('show');currentId=null}
+function overlayClose(e){if(e.target===e.currentTarget)closeEditor()}
+function saveEditor(){
+ const title=document.getElementById('editorTitle').value.trim(),body=normalizeBody(document.getElementById('richEditor').innerText).trim();if(!title&&!body){toast('Write something first');return}
+ if(currentId){const n=notes.find(x=>x.id===currentId);if(!n)return;Object.assign(n,{title:title||'Untitled',body,color:currentColor,pinned:currentPinned,labels:[...pendingLabels],updated:Date.now()});if(n.trash)n.trashAt=n.trashAt||Date.now()}
+ else {notes.unshift({id:Date.now()+Math.floor(Math.random()*1000),title:title||'Untitled',body,pinned:currentPinned,archive:false,trash:false,color:currentColor,labels:[...pendingLabels],reminder:'',updated:Date.now(),created:Date.now()})}
+ persist();renderLabels();renderNotes();closeEditor();toast('Note saved');
+}
+function togglePin(id){const n=notes.find(x=>x.id===id);if(!n)return;n.pinned=!n.pinned;n.updated=Date.now();persist();renderNotes()}
+function togglePinEditor(){currentPinned=!currentPinned;document.getElementById('pinIcon').setAttribute('fill',currentPinned?'currentColor':'none')}
+function toggleArchive(id){const n=notes.find(x=>x.id===id);if(!n)return;n.archive=!n.archive;n.trash=false;n.trashAt=null;n.updated=Date.now();persist();renderNotes();toast(n.archive?'Archived':'Moved back to Notes')}
+function archiveCurrent(){if(!currentId)return;toggleArchive(currentId);closeEditor()}
+function moveTrash(id){const n=notes.find(x=>x.id===id);if(!n)return;n.trash=true;n.archive=false;n.trashAt=Date.now();n.updated=Date.now();persist();renderLabels();renderNotes();toast('Moved to Trash')}
+function deleteCurrent(){if(!currentId)return;moveTrash(currentId);closeEditor()}
+function editorDeleteAction(){if(!currentId)return;const n=notes.find(x=>x.id===currentId);if(!n)return;if(n.trash){permanentDelete(n.id);closeEditor()}else{moveTrash(n.id);closeEditor()}}
+function restoreNote(id){const n=notes.find(x=>x.id===id);if(!n)return;n.trash=false;n.archive=false;n.trashAt=null;n.updated=Date.now();persist();renderLabels();renderNotes();toast('Note restored')}
+function permanentDelete(id){if(!confirm('Delete this note permanently? This cannot be undone.'))return;notes=notes.filter(n=>n.id!==id);persist();renderLabels();renderNotes();toast('Note permanently deleted')}
+function emptyTrash(){const count=notes.filter(n=>n.trash).length;if(!count)return;if(!confirm(`Delete ${count} ${count===1?'note':'notes'} permanently? This cannot be undone.`))return;notes=notes.filter(n=>!n.trash);persist();renderLabels();renderNotes();toast('Trash emptied')}
+function duplicateNote(id){const n=notes.find(x=>x.id===id);if(!n)return;const copy={...n,id:Date.now()+Math.floor(Math.random()*1000),title:(n.title||'Untitled')+' copy',pinned:false,trash:false,archive:false,trashAt:null,labels:[...n.labels],created:Date.now(),updated:Date.now()};notes.unshift(copy);persist();renderLabels();renderNotes();toast('Note duplicated')}
+function duplicateCurrent(){if(!currentId)return;duplicateNote(currentId)}
+function selectColor(btn,c){currentColor=c;document.querySelectorAll('.color-dot').forEach(x=>x.classList.remove('selected'));btn.classList.add('selected');document.getElementById('saveStatus').textContent='Unsaved'}
+function formatText(cmd){document.execCommand(cmd,false,null);document.getElementById('richEditor').focus();document.getElementById('saveStatus').textContent='Unsaved'}
+
+function renderChecklistEditor(body){
+ const box=document.getElementById('checkEditor'),lines=normalizeBody(body||'').split('\n');const checklist=lines.map((line,index)=>({line,index})).filter(x=>/^\s*[☐☑]\s*/.test(x.line));if(!checklist.length){box.classList.remove('show');box.innerHTML='';return}
+ box.classList.add('show');box.innerHTML='<div class="check-editor-head"><div class="check-editor-title">Checklist editor</div><div class="check-editor-title">'+checklist.filter(x=>/^\s*☑/.test(x.line)).length+'/'+checklist.length+' done</div></div>'+checklist.map(item=>{const done=item.line.trim().startsWith('☑ '),text=item.line.trim().replace(/^☐\s*|^☑\s*/,'');return `<div class="check-row"><input type="checkbox" ${done?'checked':''} onchange="setEditorChecklist(${item.index},this.checked)"><input type="text" value="${esc(text)}" oninput="setEditorChecklistText(${item.index},this.value)" aria-label="Checklist item"></div>`}).join('');
+}
+function setEditorChecklist(lineIndex,checked){const e=document.getElementById('richEditor'),lines=normalizeBody(e.innerText).split('\n');if(lineIndex<0||lineIndex>=lines.length)return;const text=lines[lineIndex].trim().replace(/^☐\s*|^☑\s*/,'');lines[lineIndex]=(checked?'☑ ':'☐ ')+text;e.innerText=lines.join('\n');document.getElementById('saveStatus').textContent='Unsaved';renderChecklistEditor(e.innerText)}
+function setEditorChecklistText(lineIndex,value){const e=document.getElementById('richEditor'),lines=normalizeBody(e.innerText).split('\n');if(lineIndex<0||lineIndex>=lines.length)return;const checked=lines[lineIndex].trim().startsWith('☑ ');lines[lineIndex]=(checked?'☑ ':'☐ ')+value;e.innerText=lines.join('\n');document.getElementById('saveStatus').textContent='Unsaved'}
+function insertChecklist(){const e=document.getElementById('richEditor'),current=normalizeBody(e.innerText);e.innerText=(current?current+'\n':'')+'☐ ';e.focus();document.getElementById('saveStatus').textContent='Unsaved';renderChecklistEditor(e.innerText)}
+function toggleChecklist(id,lineIndex,checked){const n=notes.find(x=>x.id===id);if(!n)return;const lines=normalizeBody(n.body||'').split('\n');if(lineIndex<0||lineIndex>=lines.length)return;const current=lines[lineIndex].trim();if(!/^[☐☑]\s*/.test(current))return;const text=current.replace(/^☐\s*|^☑\s*/,'');lines[lineIndex]=(checked?'☑ ':'☐ ')+text;n.body=lines.join('\n');n.updated=Date.now();persist();renderNotes()}
+
+function renderEditorLabels(list){pendingLabels=[...list];document.getElementById('editorLabels').innerHTML=pendingLabels.map(l=>`<span class="chip"><span class="label-dot" style="width:7px;height:7px;background:${labelColor(l)}"></span>${esc(l)}</span>`).join('')}
+function openLabelPicker(){
+ document.getElementById('labelPickerList').innerHTML=labels.length?labels.map(l=>`<label class="label-option"><input type="checkbox" value="${esc(l)}" ${pendingLabels.includes(l)?'checked':''}><span class="label-dot" style="background:${labelColor(l)}"></span><span>${esc(l)}</span></label>`).join(''):'<div style="padding:10px;color:#8b9096">No labels yet</div>';
+ document.getElementById('labelOverlay').classList.add('show');
+}
+function applyLabels(){pendingLabels=[...document.querySelectorAll('#labelPickerList input[type=checkbox]:checked')].map(x=>x.value);renderEditorLabels(pendingLabels);if(currentId){const n=notes.find(x=>x.id===currentId);if(n){n.labels=[...pendingLabels];n.updated=Date.now();persist();renderLabels();renderNotes()}}hideLabelPicker();document.getElementById('saveStatus').textContent='Unsaved'}
+function createAndAssignLabel(){const input=document.getElementById('newLabelInput'),name=input.value.trim();if(!name)return;if(!labels.includes(name))labels.push(name);pendingLabels=Array.from(new Set([...pendingLabels,name]));input.value='';persist();openLabelPicker();renderEditorLabels(pendingLabels);renderLabels();toast('Label added')}
+function hideLabelPicker(){document.getElementById('labelOverlay').classList.remove('show')}
+function closeLabelPicker(e){if(e.target===e.currentTarget)hideLabelPicker()}
+function openLabelManager(){renderLabelManager();document.getElementById('labelManagerOverlay').classList.add('show')}
+function renderLabelManager(){const box=document.getElementById('labelManagerList');box.innerHTML=labels.length?labels.map((l,i)=>`<div class="label-row"><span class="label-dot" style="background:${labelColor(l)}"></span><span class="label-name">${esc(l)}</span><button class="tiny-btn" title="Delete label" onclick="deleteLabel(${i})">${ICONS.trash}</button></div>`).join(''):'<div style="padding:10px;color:#8b9096">No labels yet</div>'}
+function createManagedLabel(){const input=document.getElementById('managerLabelInput'),name=input.value.trim();if(!name)return;if(labels.includes(name)){toast('Label already exists');return}labels.push(name);input.value='';persist();renderLabels();renderLabelManager();toast('Label created')}
+function deleteLabel(index){const name=labels[index];if(!name)return;if(!confirm(`Delete label “${name}”? Notes will keep their text but lose this label.`))return;labels.splice(index,1);notes.forEach(n=>{n.labels=n.labels.filter(l=>l!==name);n.updated=Date.now()});if(filter==='label:'+name)setFilter('notes',document.querySelector('[data-filter="notes"]'));persist();renderLabels();renderLabelManager();renderNotes();toast('Label deleted')}
+function hideLabelManager(){document.getElementById('labelManagerOverlay').classList.remove('show')}
+function closeLabelManager(e){if(e.target===e.currentTarget)hideLabelManager()}
+
+function openReminder(){const n=currentId?notes.find(x=>x.id===currentId):null;const d=n?.reminder?new Date(n.reminder):new Date(Date.now()+3600000);document.getElementById('remDate').value=toLocalDateInput(d);document.getElementById('remTime').value=toLocalTimeInput(d);document.getElementById('reminderOverlay').classList.add('show')}
+function hideReminder(){document.getElementById('reminderOverlay').classList.remove('show')}
+function closeReminder(e){if(e.target===e.currentTarget)hideReminder()}
+function saveReminder(){if(!currentId){toast('Save the note first, then add a reminder');hideReminder();return}const d=document.getElementById('remDate').value,t=document.getElementById('remTime').value;if(!d||!t){toast('Choose date and time');return}const n=notes.find(x=>x.id===currentId);n.reminder=new Date(d+'T'+t).toISOString();n.updated=Date.now();persist();updateReminderUI(n.reminder);renderNotes();hideReminder();toast('Reminder set')}
+function clearReminder(){if(!currentId)return;const n=notes.find(x=>x.id===currentId);if(!n)return;n.reminder='';n.updated=Date.now();persist();updateReminderUI('');renderNotes();toast('Reminder removed')}
+function updateReminderUI(value){const box=document.getElementById('reminderText');if(!value){box.style.display='none';document.getElementById('reminderValue').textContent='';return}box.style.display='flex';document.getElementById('reminderValue').textContent=new Date(value).toLocaleString()}
+function toLocalDateInput(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function toLocalTimeInput(d){return`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
+
+function openCardMenu(e,id){
+ closeMenus();const menu=document.getElementById('dataMenu');menu.innerHTML=`<button class="menu-item" onclick="openEditor(${id});closeMenus()">${ICONS.more}<span>Open note</span></button><button class="menu-item" onclick="duplicateNote(${id});closeMenus()">${ICONS.duplicate}<span>Make a copy</span></button>${filter==='trash'?`<button class="menu-item" onclick="restoreNote(${id});closeMenus()">${ICONS.restore}<span>Restore</span></button><button class="menu-item danger" onclick="permanentDelete(${id});closeMenus()">${ICONS.trash}<span>Delete permanently</span></button>`:`<button class="menu-item" onclick="toggleArchive(${id});closeMenus()">${ICONS.archive}<span>Archive / unarchive</span></button><button class="menu-item danger" onclick="moveTrash(${id});closeMenus()">${ICONS.trash}<span>Move to trash</span></button>`}`;
+ menu.style.left=Math.min(e.clientX,window.innerWidth-200)+'px';menu.style.top=Math.min(e.clientY+6,window.innerHeight-180)+'px';menu.classList.add('show');window._menuOwner='data';
+}
+function openDataMenu(e){closeMenus();const m=document.getElementById('dataMenu');m.innerHTML='<button class="menu-item" onclick="exportNotes();closeMenus()"><span>'+ICONS.restore+'</span><span>Export backup</span></button><button class="menu-item" onclick="document.getElementById(\'importFile\').click();closeMenus()"><span>'+ICONS.restore+'</span><span>Import backup</span></button>';m.style.left=Math.min(e.clientX,window.innerWidth-210)+'px';m.style.top=Math.min(e.clientY+6,window.innerHeight-115)+'px';m.classList.add('show')}
+function closeMenus(){document.getElementById('dataMenu').classList.remove('show')}
+document.addEventListener('click',e=>{if(!e.target.closest('.menu-panel')&&!e.target.closest('.menu-top')&&!e.target.closest('[title="Import / Export"]'))closeMenus()})
+
+function exportNotes(){const data={version:2,exportedAt:new Date().toISOString(),labels,notes};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='notes-backup-'+new Date().toISOString().slice(0,10)+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);toast('Backup exported')}
+function importNotes(e){const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const data=JSON.parse(reader.result);if(!Array.isArray(data.notes))throw new Error('Invalid backup');const incoming=data.notes.map(migrateNote);const choice=confirm('OK = replace existing notes. Cancel = merge backup into current notes.');if(choice){notes=incoming}else{const ids=new Set(notes.map(n=>n.id));incoming.forEach(n=>{if(ids.has(n.id))n.id=Date.now()+Math.floor(Math.random()*100000);n.updated=Date.now();notes.push(n)})}if(Array.isArray(data.labels))labels=Array.from(new Set([...labels,...data.labels.map(String).filter(Boolean)]));persist();renderLabels();renderNotes();toast('Backup imported')}catch(err){toast('Invalid backup file')}};reader.readAsText(file);e.target.value='' }
+
+function toggleSidebar(force){const s=document.getElementById('sidebar'),b=document.getElementById('backdrop'),open=typeof force==='boolean'?force:!s.classList.contains('open');s.classList.toggle('open',open);b.classList.toggle('show',open)}
+function toggleDark(){const dark=!document.body.classList.contains('dark');document.body.classList.toggle('dark',dark);localStorage.setItem('notes-dark',dark?'1':'0')}
+
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='n'){e.preventDefault();openEditor()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='f'){e.preventDefault();document.getElementById('search').focus()}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'&&document.getElementById('editorOverlay').classList.contains('show')){e.preventDefault();saveEditor()}if(e.key==='Escape'){closeEditor();hideReminder();hideLabelPicker();hideLabelManager();closeMenus();toggleSidebar(false)}})
+document.getElementById('richEditor').addEventListener('input',()=>{document.getElementById('saveStatus').textContent='Unsaved';renderChecklistEditor(document.getElementById('richEditor').innerText)})
+
+function init(){
+ notes=notes.map(migrateNote);persist();if(localStorage.getItem('notes-dark')==='1')document.body.classList.add('dark');renderLabels();renderNotes();if(localStorage.getItem('notes-view-list')==='1')document.getElementById('notesGrid').classList.add('list');
+}
+init();
+</script>
+</body>
+</html>

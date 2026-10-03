@@ -440,16 +440,24 @@ model UserNavPref {
 // ---------------------------------------------------------------------------
 
 model Note {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  title     String   @default("")
-  content   String   @default("")
-  color     String   @default("default")
-  pinned    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  title     String    @default("")
+  content   String    @default("")
+  color     String    @default("default")
+  pinned    Boolean   @default(false)
+  archive   Boolean   @default(false)
+  trash     Boolean   @default(false)
+  trashAt   DateTime?
+  // Labels stored as a JSON-encoded string array (e.g. '["Personal","Work"]')
+  labels    String    @default("[]")
+  reminder  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   @@index([userId])
   @@index([pinned])
+  @@index([archive])
+  @@index([trash])
 }
 
