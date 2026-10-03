@@ -287,3 +287,45 @@ Stage Summary:
 - Phones now default to Reels mode (TikTok/Instagram-style vertical scroll-snap feed) when opening any video
 - Desktops still default to Standard mode
 - User's explicit toggle still works and is persisted to the backend
+
+---
+Task ID: master-v8
+Agent: Super Z (main)
+Task: Photos multi-select + bulk delete/move-to-private + reels mode default in Private
+
+Work Log:
+- Requirement 1 (Photos multi-select): Rewrote photos-view.tsx with a Select mode:
+  * Added a "Select" button (with CheckSquare icon) next to the ViewToggle and Upload button
+  * Clicking "Select" enters select mode: replaces header buttons with "All / None / Cancel" controls
+  * In select mode, each photo shows a circular check indicator (top-left)
+  * Selected photos get a thick amber ring + amber overlay tint
+  * Clicking a photo in select mode toggles selection (instead of opening the viewer)
+  * A sticky bulk-action bar appears at top when at least one photo is selected, showing:
+    - "N selected" label
+    - "Move to Private" button (amber gradient) — shown when not all selected are already private
+    - "Move to Public" button (emerald gradient) — shown when at least one selected is private
+    - "Delete" button (rose outline)
+  * Bulk actions call /api/media/[id] PATCH {visibility} or DELETE for each selected id sequentially
+  * After action completes, exits select mode and refreshes the list
+  * Broadcasts an "escloud-data-changed" event so other open lists refresh too
+  * Only shows "Move to Private" if user has private_access permission
+- Requirement 2 (Reels mode default in Private): This is already handled by the earlier mobile-detection fix:
+  * VideoPlayerOverlay uses useIsMobile() to default to reels mode on phones
+  * MediaCard already passes item.visibility when opening the overlay
+  * media-viewer-overlay already uses params.visibility in the fetch query
+  * So opening a video from the Private page on a phone:
+    1. Passes visibility=private to the overlay
+    2. Overlay fetches /api/media?type=video&visibility=private&pageSize=200 → all private videos
+    3. useIsMobile() returns true → reelsMode defaults to true
+    4. Reels feed has all private videos to scroll-snap through
+- Verified end-to-end:
+  * Home page loads HTTP 200
+  * Move one photo to private via API → public photos count drops from 6 to 5, private photos count goes from 0 to 1
+  * Move back to public → count restores to 6
+  * Bulk API signatures verified (uses the existing /api/media/[id] PATCH and DELETE endpoints)
+  * TypeScript check = no errors
+  * Dev server log = no errors
+
+Stage Summary:
+- Photos now support multi-select: tap "Select" → tap photos to select → Delete or Move to Private/Public via the sticky bulk-action bar
+- Reels mode is now the default on phones for ALL video opens including from the Private page (the earlier mobile-detection fix already covered this — verified)
