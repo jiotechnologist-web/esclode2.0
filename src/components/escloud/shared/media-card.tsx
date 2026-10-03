@@ -24,6 +24,7 @@ import {
   Video as VideoIcon,
   Users as UsersIcon,
   Lock,
+  Globe,
   Clock,
   RotateCw,
 } from "lucide-react";
@@ -86,6 +87,27 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
     window.open(`/api/media/${item.id}/download`, "_blank");
   };
 
+  const handleTogglePrivate = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    e?.preventDefault();
+    const newVis = item.visibility === "private" ? "public" : "private";
+    try {
+      const r = await fetch(`/api/media/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visibility: newVis }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.error ?? "Failed");
+      }
+      toast.success(newVis === "private" ? "Moved to Private" : "Moved to Public");
+      onChange?.();
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to move");
+    }
+  };
+
   const Icon = item.type === "video" ? VideoIcon : item.type === "photo" ? ImageIcon : item.type === "contact" ? UsersIcon : FileText;
 
   if (view === "list") {
@@ -132,6 +154,10 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
               <DropdownMenuItem onClick={open}><Eye className="w-3.5 h-3.5 mr-2" />Open</DropdownMenuItem>
               <DropdownMenuItem onClick={handleDownload}><Download className="w-3.5 h-3.5 mr-2" />Download</DropdownMenuItem>
               <DropdownMenuItem onClick={handleFav}><Heart className="w-3.5 h-3.5 mr-2" />{item.isFavorite ? "Unfavorite" : "Favorite"}</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleTogglePrivate}>
+                {item.visibility === "private" ? <Globe className="w-3.5 h-3.5 mr-2" /> : <Lock className="w-3.5 h-3.5 mr-2" />}
+                {item.visibility === "private" ? "Make Public" : "Move to Private"}
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-rose-600" onClick={handleDelete}><Trash2 className="w-3.5 h-3.5 mr-2" />Delete</DropdownMenuItem>
             </DropdownMenuContent>
@@ -231,6 +257,10 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
             <DropdownMenuItem onClick={open}><Eye className="w-3.5 h-3.5 mr-2" />Open</DropdownMenuItem>
             <DropdownMenuItem onClick={handleDownload}><Download className="w-3.5 h-3.5 mr-2" />Download</DropdownMenuItem>
             <DropdownMenuItem onClick={handleFav}><Heart className="w-3.5 h-3.5 mr-2" />{item.isFavorite ? "Unfavorite" : "Favorite"}</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleTogglePrivate}>
+              {item.visibility === "private" ? <Globe className="w-3.5 h-3.5 mr-2" /> : <Lock className="w-3.5 h-3.5 mr-2" />}
+              {item.visibility === "private" ? "Make Public" : "Move to Private"}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-rose-600" onClick={handleDelete}><Trash2 className="w-3.5 h-3.5 mr-2" />Delete</DropdownMenuItem>
           </DropdownMenuContent>

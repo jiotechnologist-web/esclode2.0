@@ -64,7 +64,6 @@ export function HomeView() {
     { label: "Contacts", value: profile?.storage.byType.find((b: any) => b.type === "contact")?.count ?? 0, icon: Users, color: "from-emerald-500 to-teal-600", view: "contacts" as const },
   ];
 
-  // Quick actions — NO duplicate upload button. Upload is separate.
   const quickActions = [
     { label: "Notes", icon: StickyNote, color: "from-amber-500 to-yellow-500", view: "notes" as const, show: true },
     { label: "Favorites", icon: Heart, color: "from-rose-500 to-pink-600", view: "favorites" as const, show: true },
@@ -81,9 +80,9 @@ export function HomeView() {
   return (
     <div className="min-h-screen pb-6">
       {/* Profile Header — gradient banner */}
-      <div className="relative bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 dark:from-emerald-900 dark:via-teal-900 dark:to-cyan-900 px-4 pt-6 pb-16">
-        <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full bg-cyan-400/20 blur-xl" />
+      <div className="relative bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 dark:from-emerald-900 dark:via-teal-900 dark:to-cyan-900 px-4 pt-6 pb-6">
+        <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full bg-cyan-400/20 blur-xl pointer-events-none" />
         <div className="relative flex items-center gap-4">
           <Avatar className="w-16 h-16 border-4 border-white/30 shadow-lg shrink-0">
             {avatarUrl ? (
@@ -112,71 +111,63 @@ export function HomeView() {
         </div>
       </div>
 
-      {/* Content overlaps the banner */}
-      <div className="px-3 -mt-12 space-y-4">
+      {/* Content — NO negative margin, proper spacing */}
+      <div className="px-3 pt-4 space-y-4">
         {/* Storage + Upload row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Storage Card */}
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-            <Card className="shadow-lg border-border/50 h-full">
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
-                    <HardDrive className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold">Storage</div>
-                    <div className="text-xs text-muted-foreground">{profile?.storage?.mediaCount ?? 0} items</div>
-                  </div>
+          <Card className="shadow-md border-border/50">
+            <CardContent className="pt-4 pb-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
+                  <HardDrive className="w-5 h-5 text-white" />
                 </div>
-                <div className="relative h-2.5 bg-muted rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${storagePct}%` }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
-                  />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold">Storage</div>
+                  <div className="text-xs text-muted-foreground">{profile?.storage?.mediaCount ?? 0} items</div>
                 </div>
-                <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground">
-                  <span>{formatBytes(profile?.storage?.used ?? 0)} / {formatBytes(profile?.storage?.quota ?? 0)}</span>
-                  <span>{storagePct.toFixed(1)}% used</span>
-                </div>
+              </div>
+              <div className="relative h-2.5 bg-muted rounded-full overflow-hidden">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${storagePct}%` }}
+                  transition={{ duration: 0.5, ease: "easeOut" }}
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
+                />
+              </div>
+              <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground">
+                <span>{formatBytes(profile?.storage?.used ?? 0)} / {formatBytes(profile?.storage?.quota ?? 0)}</span>
+                <span>{storagePct.toFixed(1)}% used</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {canUploadAny ? (
+            <Card className="shadow-md border-border/50">
+              <CardContent className="pt-4 pb-4 flex flex-col items-center justify-center">
+                <UploadButton
+                  label="Upload Files"
+                  className="w-full h-11 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white border-0"
+                  onFiles={async (files) => {
+                    await addFiles(files, { visibility: "public" });
+                    toast.success(`Uploading ${files.length} file(s)`);
+                  }}
+                />
+                <p className="text-[10px] text-muted-foreground mt-2 text-center">Videos, photos, docs & contacts</p>
               </CardContent>
             </Card>
-          </motion.div>
-
-          {/* Upload Card — only show if user can upload */}
-          {canUploadAny ? (
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
-              <Card className="shadow-lg border-border/50 h-full">
-                <CardContent className="pt-4 pb-4 flex flex-col items-center justify-center">
-                  <UploadButton
-                    label="Upload Files"
-                    className="w-full h-11 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white border-0"
-                    onFiles={async (files) => {
-                      await addFiles(files, { visibility: "public" });
-                      toast.success(`Uploading ${files.length} file(s)`);
-                    }}
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-2 text-center">Videos, photos, documents & contacts</p>
-                </CardContent>
-              </Card>
-            </motion.div>
           ) : (
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.05 }}>
-              <Card className="shadow-lg border-border/50 h-full">
-                <CardContent className="pt-4 pb-4 flex flex-col items-center justify-center">
-                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-2">
-                    <Sparkles className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                  <p className="text-xs text-muted-foreground text-center">Ask your admin to enable uploads</p>
-                </CardContent>
-              </Card>
-            </motion.div>
+            <Card className="shadow-md border-border/50">
+              <CardContent className="pt-4 pb-4 flex flex-col items-center justify-center">
+                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center mb-2">
+                  <Sparkles className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <p className="text-xs text-muted-foreground text-center">Ask admin to enable uploads</p>
+              </CardContent>
+            </Card>
           )}
         </div>
 
-        {/* Quick Actions — horizontal scroll on mobile, grid on desktop */}
+        {/* Quick Actions */}
         <div className="flex sm:grid sm:grid-cols-5 gap-2 overflow-x-auto no-scrollbar pb-1">
           {quickActions.map((a, i) => (
             <motion.button
@@ -225,26 +216,24 @@ export function HomeView() {
 
         {/* Private Access Banner */}
         {hasPrivateAccess && (
-          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}>
-            <Card className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/30 shadow-md">
-              <CardContent className="py-3 flex items-center gap-3">
-                <motion.div
-                  animate={{ scale: [1, 1.08, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                  className="w-9 h-9 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0"
-                >
-                  <Shield className="w-4 h-4 text-amber-500" />
-                </motion.div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">Private Access</div>
-                  <div className="text-[11px] text-muted-foreground">Password-protected private content</div>
-                </div>
-                <Button size="sm" variant="outline" onClick={() => setView("private")} className="shrink-0">
-                  Open
-                </Button>
-              </CardContent>
-            </Card>
-          </motion.div>
+          <Card className="bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/30 shadow-md">
+            <CardContent className="py-3 flex items-center gap-3">
+              <motion.div
+                animate={{ scale: [1, 1.08, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="w-9 h-9 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0"
+              >
+                <Shield className="w-4 h-4 text-amber-500" />
+              </motion.div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">Private Access</div>
+                <div className="text-[11px] text-muted-foreground">Password-protected private content</div>
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setView("private")} className="shrink-0">
+                Open
+              </Button>
+            </CardContent>
+          </Card>
         )}
 
         {/* Recent Videos */}
@@ -300,19 +289,17 @@ export function HomeView() {
 
         {/* Empty state */}
         {!profile?.storage?.mediaCount && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-            <Card className="border-dashed">
-              <CardContent className="py-8 text-center">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center mx-auto mb-3 shadow-md">
-                  <Sparkles className="w-7 h-7 text-white" />
-                </div>
-                <p className="text-sm font-medium">Welcome to Escloud!</p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-                  Upload your first file to get started.
-                </p>
-              </CardContent>
-            </Card>
-          </motion.div>
+          <Card className="border-dashed">
+            <CardContent className="py-8 text-center">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-cyan-500 flex items-center justify-center mx-auto mb-3 shadow-md">
+                <Sparkles className="w-7 h-7 text-white" />
+              </div>
+              <p className="text-sm font-medium">Welcome to Escloud!</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
+                Upload your first file to get started.
+              </p>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>
