@@ -33,9 +33,16 @@ export function MediaViewerOverlay() {
       try {
         // Determine type filter for swipe context
         const typeFilter = overlay === "video-player" ? "video" : overlay === "photo-viewer" ? "photo" : undefined;
-        const listUrl = typeFilter
-          ? `/api/media?type=${typeFilter}&pageSize=200`
-          : `/api/media?pageSize=200`;
+        // If the caller passed a `visibility` (e.g. "private" when opening from the Private page),
+        // include it in the query so we fetch the correct list. Without this, a private video
+        // opened from the Private page would fall back to the public list (which excludes private
+        // content), giving us a single-item list and breaking reels-mode scroll-snap.
+        const visParam = params.visibility as string | undefined;
+        const queryParams = new URLSearchParams();
+        if (typeFilter) queryParams.set("type", typeFilter);
+        if (visParam) queryParams.set("visibility", visParam);
+        queryParams.set("pageSize", "200");
+        const listUrl = `/api/media?${queryParams.toString()}`;
         const r = await fetch(listUrl);
         const d = await r.json();
         if (cancelled) return;
@@ -78,7 +85,7 @@ export function MediaViewerOverlay() {
       }
     })();
     return () => { cancelled = true; };
-  }, [overlay, params.mediaId]);
+  }, [overlay, params.mediaId, params.visibility]);
 
   if (!overlay) return null;
 

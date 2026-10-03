@@ -107,7 +107,7 @@ export function PhotosView() {
               transition={{ delay: i * 0.03, duration: 0.25 }}
               whileHover={{ scale: 1.04, y: -2 }}
               className={cn("aspect-square rounded-xl overflow-hidden bg-muted cursor-pointer hover:shadow-premium-lg transition-shadow group relative shadow-premium")}
-              onClick={() => setOverlay("photo-viewer", { mediaId: p.id })}
+              onClick={() => setOverlay("photo-viewer", { mediaId: p.id, visibility: p.visibility })}
             >
               {p.thumbnailUrl && (
                 <img src={p.thumbnailUrl} alt={p.name} className="w-full h-full object-cover" loading="lazy" />

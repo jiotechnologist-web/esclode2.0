@@ -73,8 +73,9 @@ export function HomeView() {
   ].filter(a => a.show);
 
   const openMedia = (m: ApiMediaItem) => {
-    if (m.type === "video") setOverlay("video-player", { mediaId: m.id });
-    else if (m.type === "photo") setOverlay("photo-viewer", { mediaId: m.id });
+    // Pass `visibility` so the viewer overlay fetches the correct list (private vs public).
+    if (m.type === "video") setOverlay("video-player", { mediaId: m.id, visibility: m.visibility });
+    else if (m.type === "photo") setOverlay("photo-viewer", { mediaId: m.id, visibility: m.visibility });
   };
 
   return (

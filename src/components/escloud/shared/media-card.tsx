@@ -47,9 +47,13 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
   const [busy, setBusy] = useState(false);
 
   const open = () => {
-    if (item.type === "video") setOverlay("video-player", { mediaId: item.id });
-    else if (item.type === "photo") setOverlay("photo-viewer", { mediaId: item.id });
-    else if (item.type === "document") setOverlay("photo-viewer", { mediaId: item.id }); // DocumentPreviewOverlay via fallback
+    // Pass `visibility` so the viewer overlay fetches the correct list (private vs public).
+    // Without this, opening a private video from the Private page would fetch the public
+    // video list (which excludes private content), fall back to single-item, and show "1/1"
+    // breaking reels-mode scroll-snap.
+    if (item.type === "video") setOverlay("video-player", { mediaId: item.id, visibility: item.visibility });
+    else if (item.type === "photo") setOverlay("photo-viewer", { mediaId: item.id, visibility: item.visibility });
+    else if (item.type === "document") setOverlay("photo-viewer", { mediaId: item.id, visibility: item.visibility }); // DocumentPreviewOverlay via fallback
     else if (item.type === "contact") setView("contacts", { focus: item.id });
     else setView("documents", { focus: item.id });
   };

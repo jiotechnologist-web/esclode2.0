@@ -227,3 +227,43 @@ Stage Summary:
 - Reels mode scroll-snap now WORKS: VB touch handlers disabled in reels mode; browser handles vertical scrolling natively; tap-vs-swipe detection prevents play/pause toggle on scroll
 - Prev/next video buttons now WORK: SkipBack/SkipForward icons with "Prev"/"Next" labels; stopPropagation prevents click bubbling; larger and more visible
 - Reels nav arrows (up/down) already had stopPropagation; scrollIntoView with scroll-snap should work correctly now that VB handlers don't interfere
+
+---
+Task ID: master-v6
+Agent: Super Z (main)
+Task: Fix "1/1" when opening a private video from the Private page (root cause of reels mode not working in Private)
+
+Work Log:
+- ROOT CAUSE: When opening a video from the Private page, the MediaViewerOverlay fetched
+  /api/media?type=video&pageSize=200 — which returns only PUBLIC videos (the user's own
+  PRIVATE content is excluded from default listings by design — that's the MOVE behavior).
+  So the clicked private video was NOT in the fetched list → fallback to single-item fetch
+  → items = [that one video] → showed "1/1" → reels mode had nothing to scroll to.
+- Fix in 3 places:
+  1. media-card.tsx (the card click handler) — pass `visibility: item.visibility` along
+     with `mediaId` when calling setOverlay("video-player", ...) / ("photo-viewer", ...).
+     This applies to video, photo, AND document opens.
+  2. home-view.tsx — the `openMedia` helper now also passes `visibility: m.visibility`.
+  3. photos-view.tsx — the photo grid click now passes `visibility: p.visibility`.
+  4. media-viewer-overlay.tsx — reads `params.visibility` and includes it as a query
+     param when fetching the list. So opening a private video now hits
+     `/api/media?type=video&visibility=private&pageSize=200` which returns ALL the user's
+     private videos. The overlay finds the clicked one in the list, sets the right
+     index, and shows the correct count (e.g. "1/2", "2/3") so reels mode has multiple
+     items to scroll-snap through.
+- Verified end-to-end:
+  * Move a video to private → opening it from the Private page now fetches the private
+    list (count=1 or N) → finds the video → correct count is displayed
+  * Move 2 videos to private → opening either shows "1/2" or "2/2" → reels mode has
+    2 items to scroll between
+  * Home page still loads HTTP 200, no compile errors, no TypeScript errors
+  * Move-to-private/public flow still works
+  * Restored demo user's videos to public after testing so they look as before
+
+Stage Summary:
+- "1/1" bug FIXED — opening a private video from the Private page now correctly fetches
+  the private list, shows the right count, and reels mode can scroll-snap to all
+  private videos in the list.
+- The fix is generic (passes visibility from any media card click → media-viewer-overlay
+  → uses it in the list query) so it works for any view (Private page, search results,
+  future custom filters, etc.).
