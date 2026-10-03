@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useUIStore } from "@/stores/ui";
 import { Button } from "@/components/ui/button";
-import { X, ChevronUp, ChevronDown, Smartphone, Monitor } from "lucide-react";
+import { X, ChevronUp, ChevronDown, Smartphone, Monitor, SkipBack, SkipForward } from "lucide-react";
 import { toast } from "sonner";
 import { saveWatchProgress } from "./use-media-list";
 import type { ApiMediaItem } from "@/lib/types";
@@ -119,6 +119,7 @@ function CustomVideoPlayer({
   onProgress,
   onEnded,
   active,
+  reelsMode = false,
 }: {
   src: string;
   poster?: string;
@@ -128,6 +129,7 @@ function CustomVideoPlayer({
   onProgress?: (currentTime: number, duration: number) => void;
   onEnded?: () => void;
   active?: boolean;
+  reelsMode?: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -490,20 +492,38 @@ function CustomVideoPlayer({
   });
   const onTouchEndArea = (e: React.TouchEvent) => {
     // 1. End volume/brightness swipe (if active)
+    const wasVBSwipe = vbActiveRef.current;
     touchStartYRef.current = null;
-    if (vbActiveRef.current) {
+    if (wasVBSwipe) {
       // Hide the overlay after a short delay
       setTimeout(() => setVbVisible(false), 300);
       vbActiveRef.current = null;
       setVbSide(null);
     }
-    // 2. Handle double-tap-to-seek (only if a swipe wasn't engaged)
+    // 2. Handle double-tap-to-seek / single-tap play toggle
+    //    BUT only if this was a TAP, not a swipe. A swipe has movement > 10px.
     if (e.changedTouches.length === 0) return;
     const container = containerRef.current;
     if (!container) return;
     const rect = container.getBoundingClientRect();
-    const x = e.changedTouches[0].clientX - rect.left;
-    const side = x < rect.width / 2 ? "left" : "right";
+    const endX = e.changedTouches[0].clientX - rect.left;
+    const endY = e.changedTouches[0].clientY - rect.top;
+    // Check if this was a swipe (significant movement from start position)
+    // touchStartYRef was set by onTouchStartArea; if null, we can't determine — treat as tap
+    if (touchStartPosRef.current) {
+      const dx = endX - touchStartPosRef.current.x;
+      const dy = endY - touchStartPosRef.current.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      touchStartPosRef.current = null;
+      if (dist > 12) {
+        // It was a swipe (scroll or VB gesture), not a tap — skip tap handling
+        return;
+      }
+    }
+    // If a VB swipe was active, also skip tap handling
+    if (wasVBSwipe) return;
+    // It's a tap — handle double-tap-to-seek or single-tap play toggle
+    const side = endX < rect.width / 2 ? "left" : "right";
     const now = Date.now();
     const delta = now - lastTouchRef.current[side];
     if (delta < 300) {
@@ -543,6 +563,10 @@ function CustomVideoPlayer({
   // left half of the video, adjust brightness. If on the right half, adjust volume.
   // Show an overlay with a vertical bar.
   const touchStartYRef = useRef<{ y: number; x: number; time: number } | null>(null);
+  // Records the touch start position for tap-vs-swipe detection in onTouchEndArea.
+  // Without this, a vertical scroll-swipe in reels mode would be misinterpreted as a tap
+  // and toggle play/pause.
+  const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const vbActiveRef = useRef<"left" | "right" | null>(null);
   const onTouchStartArea = (e: React.TouchEvent) => {
     if (e.touches.length === 0) return;
@@ -552,6 +576,7 @@ function CustomVideoPlayer({
     const x = e.touches[0].clientX - rect.left;
     const y = e.touches[0].clientY - rect.top;
     touchStartYRef.current = { y, x, time: Date.now() };
+    touchStartPosRef.current = { x, y };
   };
   const onTouchMoveArea = (e: React.TouchEvent) => {
     if (!touchStartYRef.current || e.touches.length === 0) return;
@@ -687,9 +712,11 @@ function CustomVideoPlayer({
       ref={containerRef}
       onClick={onVideoAreaClick}
       onTouchStart={onTouchStartArea}
-      onTouchMove={onTouchMoveArea}
       onTouchEnd={onTouchEndArea}
-      onWheel={onMouseWheelArea}
+      {...(reelsMode ? {} : {
+        onTouchMove: onTouchMoveArea,
+        onWheel: onMouseWheelArea,
+      })}
     >
       <div className="cvp-wrapper">
         <div className="cvp-video-timeline" ref={timelineRef}>
@@ -945,6 +972,7 @@ function ReelsVideoItem({
         preload={preload}
         active={active}
         onProgress={onProgress}
+        reelsMode
       />
     </div>
   );
@@ -1001,26 +1029,33 @@ function StandardPlayer({
           />
         </div>
       </div>
-      {/* Bottom navigation bar (prev / index / next) */}
-      <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-black/50 backdrop-blur px-3 py-1.5 rounded-full">
+      {/* Bottom navigation bar (prev video / index / next video) */}
+      <div
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[70] flex items-center gap-3 bg-black/80 backdrop-blur px-4 py-2.5 rounded-full shadow-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button
           variant="ghost"
-          size="sm"
           disabled={index <= 0}
-          onClick={onPrev}
-          className="text-white hover:bg-white/10 disabled:opacity-30 h-8 px-2"
+          onClick={(e) => { e.stopPropagation(); onPrev(); }}
+          className="text-white hover:bg-white/15 disabled:opacity-30 disabled:cursor-not-allowed h-10 px-3 gap-1.5"
+          title="Previous video"
         >
-          <ChevronUp className="w-4 h-4" />
+          <SkipBack className="w-4 h-4" />
+          <span className="text-xs font-medium">Prev</span>
         </Button>
-        <span className="text-white text-xs">{index + 1} / {total}</span>
+        <span className="text-white text-xs font-mono px-1 min-w-[50px] text-center">
+          {index + 1} / {total}
+        </span>
         <Button
           variant="ghost"
-          size="sm"
           disabled={index >= total - 1}
-          onClick={onNext}
-          className="text-white hover:bg-white/10 disabled:opacity-30 h-8 px-2"
+          onClick={(e) => { e.stopPropagation(); onNext(); }}
+          className="text-white hover:bg-white/15 disabled:opacity-30 disabled:cursor-not-allowed h-10 px-3 gap-1.5"
+          title="Next video"
         >
-          <ChevronDown className="w-4 h-4" />
+          <span className="text-xs font-medium">Next</span>
+          <SkipForward className="w-4 h-4" />
         </Button>
       </div>
     </div>

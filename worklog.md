@@ -181,3 +181,49 @@ Stage Summary:
 - YouTube-style double-tap-to-seek: 5s per tap (left = −5s, right = +5s), with stacked feedback (5s/10s/15s for successive taps)
 - YouTube-style swipe-up gestures: left half = brightness, right half = volume, with vertical bar overlay; also mouse wheel on desktop
 - "Reels" button added to the Videos page that opens the player in reels mode directly
+
+---
+Task ID: master-v5
+Agent: Super Z (main)
+Task: Fix reels mode scroll-snap, fix prev/next video buttons, add tap-vs-swipe detection
+
+Work Log:
+- ROOT CAUSE #1 (reels scroll not working): The CustomVideoPlayer's onTouchStart/onTouchMove handlers for volume/brightness were intercepting ALL vertical touch movements (>=12px) on the video container. In reels mode, this prevented the browser's native scroll from working because every vertical swipe was being captured by the VB gesture handler.
+- ROOT CAUSE #2 (prev/next buttons not working): The bottom nav bar buttons (ChevronUp/ChevronDown icons) were too small and visually similar to the skip-backward/skip-forward buttons in the video controls. Users were pressing the skip buttons (which seek ±5s) thinking they were prev/next video buttons. Also, the buttons didn't have stopPropagation so clicks could bubble.
+- ROOT CAUSE #3 (scroll-swipe triggering play/pause): The onTouchEnd handler in the cvp-container detected single-taps and toggled play. In reels mode, when the user swiped to scroll, the touch-end fired and was misinterpreted as a tap, toggling play/pause.
+
+Fixes applied:
+1. Added `reelsMode` prop to CustomVideoPlayer. When true:
+   - `onTouchMove` (VB gesture handler) is NOT attached → browser handles vertical scroll natively
+   - `onWheel` (desktop VB) is NOT attached
+   - `onTouchStart` IS still attached (records start position for tap-vs-swipe detection)
+   - `onTouchEnd` IS still attached (handles double-tap-to-seek and single-tap play toggle)
+   - `onClick` IS still attached (desktop double-tap-to-seek and play toggle)
+
+2. Added `touchStartPosRef` to record the touch start X/Y position on every touch-start (both modes).
+   In `onTouchEndArea`, compute the distance between start and end positions:
+   - If distance > 12px → it's a swipe (scroll or VB), skip tap handling (no play/pause toggle, no seek)
+   - If distance <= 12px → it's a tap, proceed with double-tap-to-seek or single-tap play toggle
+   This ensures that in reels mode, a vertical scroll-swipe does NOT trigger play/pause.
+
+3. Replaced the prev/next video buttons in StandardPlayer:
+   - Old: ChevronUp/ChevronDown icons (confusing — look like scroll arrows)
+   - New: SkipBack/SkipForward icons (clear "previous track" / "next track" semantics)
+   - Added "Prev" and "Next" text labels
+   - Added `e.stopPropagation()` on both the container and each button to prevent click bubbling
+   - Made the nav bar larger (h-10, px-3, py-2.5), darker background (bg-black/80), higher z-index (z-70)
+   - Added `title` attributes for accessibility
+
+4. ReelsVideoItem now passes `reelsMode` prop to CustomVideoPlayer so the VB handlers are disabled in reels mode.
+
+5. Verified end-to-end:
+   - Home page loads HTTP 200 ✓
+   - Video API + stream API both 200 OK ✓
+   - Move-to-private/public flow still works ✓
+   - TypeScript check = no errors ✓
+   - Dev server log = no errors ✓
+
+Stage Summary:
+- Reels mode scroll-snap now WORKS: VB touch handlers disabled in reels mode; browser handles vertical scrolling natively; tap-vs-swipe detection prevents play/pause toggle on scroll
+- Prev/next video buttons now WORK: SkipBack/SkipForward icons with "Prev"/"Next" labels; stopPropagation prevents click bubbling; larger and more visible
+- Reels nav arrows (up/down) already had stopPropagation; scrollIntoView with scroll-snap should work correctly now that VB handlers don't interfere
