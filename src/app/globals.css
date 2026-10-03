@@ -420,3 +420,44 @@ html { scroll-behavior: smooth; }
   -ms-overflow-style: none;
 }
 .no-scrollbar-x::-webkit-scrollbar { display: none; }
+
+/* === Vidstack Reels-style overrides === */
+/* Make the media-player fill its container in both Reels and Standard modes */
+.media-player-reels,
+.media-player-standard {
+  width: 100%;
+  height: 100%;
+  max-width: 100vw;
+  max-height: 100dvh;
+}
+.media-player-reels[data-view-type="video"] video,
+.media-player-standard[data-view-type="video"] video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  background: #000;
+}
+/* Reels feed container — no scrollbar but keep scroll-snap */
+.reels-feed {
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.reels-feed::-webkit-scrollbar { display: none; }
+.reels-feed > * {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+/* Make Vidstack controls always visible on touch devices (better mobile UX) */
+@media (hover: none) and (pointer: coarse) {
+  .media-player-reels[data-view-type="video"]:not([data-paused]) [data-media-controls] {
+    /* keep controls available but auto-hide per Vidstack default behavior */
+  }
+}
+/* Ensure Vidstack's font/icon assets inherit our text color in dark mode */
+.dark .vds-controls,
+.dark .vds-tooltip-content,
+.dark [data-media-controls] {
+  color: #fff;
+}

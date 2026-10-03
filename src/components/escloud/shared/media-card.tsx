@@ -27,6 +27,7 @@ import {
   Globe,
   Clock,
   RotateCw,
+  Loader2,
 } from "lucide-react";
 import type { ApiMediaItem } from "@/lib/types";
 import { useUIStore } from "@/stores/ui";
@@ -91,6 +92,7 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
     e?.stopPropagation();
     e?.preventDefault();
     const newVis = item.visibility === "private" ? "public" : "private";
+    setBusy(true);
     try {
       const r = await fetch(`/api/media/${item.id}`, {
         method: "PATCH",
@@ -102,9 +104,16 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
         throw new Error(d.error ?? "Failed");
       }
       toast.success(newVis === "private" ? "Moved to Private" : "Moved to Public");
+      // Broadcast so other lists (videos, photos, private) refresh and the moved item
+      // disappears from this list and appears in the other.
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("escloud-data-changed", { detail: { type: "visibility", mediaId: item.id, visibility: newVis } }));
+      }
       onChange?.();
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to move");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -138,6 +147,17 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={handleTogglePrivate}
+            disabled={busy}
+            className="h-8 w-8"
+            title={item.visibility === "private" ? "Move to Public" : "Move to Private"}
+          >
+            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> :
+              item.visibility === "private" ? <Globe className="w-4 h-4 text-emerald-500" /> : <Lock className="w-4 h-4 text-amber-500" />}
+          </Button>
           <Button size="icon" variant="ghost" onClick={handleFav} className="h-8 w-8">
             <Heart className={cn("w-4 h-4", item.isFavorite && "fill-rose-500 text-rose-500")} />
           </Button>
@@ -237,11 +257,22 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
           <Button
             size="icon"
             variant="secondary"
-          className="h-7 w-7 bg-black/60 hover:bg-black/80 text-white border-0"
-          onClick={handleFav}
-        >
-          <Heart className={cn("w-3.5 h-3.5", item.isFavorite && "fill-rose-500 text-rose-500")} />
-        </Button>
+            className="h-7 w-7 bg-black/60 hover:bg-black/80 text-white border-0"
+            onClick={handleTogglePrivate}
+            disabled={busy}
+            title={item.visibility === "private" ? "Move to Public" : "Move to Private"}
+          >
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> :
+              item.visibility === "private" ? <Globe className="w-3.5 h-3.5 text-emerald-400" /> : <Lock className="w-3.5 h-3.5 text-amber-400" />}
+          </Button>
+          <Button
+            size="icon"
+            variant="secondary"
+            className="h-7 w-7 bg-black/60 hover:bg-black/80 text-white border-0"
+            onClick={handleFav}
+          >
+            <Heart className={cn("w-3.5 h-3.5", item.isFavorite && "fill-rose-500 text-rose-500")} />
+          </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

@@ -145,7 +145,7 @@ export async function DELETE(
   return jsonOk({ ok: true });
 }
 
-// PATCH /api/media/[id] - rename, move folder, change visibility
+// PATCH /api/media/[id] - rename, move folder, change visibility (MOVE not COPY)
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -167,18 +167,37 @@ export async function PATCH(
   if (body.folderId !== undefined) data.folderId = body.folderId;
 
   // Owner can change their own content visibility (if they have private_access)
+  // This is a MOVE — the visibility flag on the media row is the single source of truth,
+  // and the listing queries filter by visibility, so changing it physically moves the
+  // item between the Public and Private sections.
   if (body.visibility !== undefined) {
+    const newVis: string = body.visibility === "private" ? "private" : "public";
     if (isAdmin) {
-      data.visibility = body.visibility === "private" ? "private" : "public";
+      data.visibility = newVis;
     } else if (isOwner) {
-      // User can make their own content private if they have private_access permission
-      if (body.visibility === "private") {
+      if (newVis === "private") {
+        // User can only make content private if they have private_access permission
         const hasPrivateAccess = ctx.user.permissions.includes("private_access");
         if (!hasPrivateAccess) return jsonError("You need Private Access permission to make content private", 403);
         data.visibility = "private";
       } else {
         data.visibility = "public";
       }
+    }
+
+    // Apply side-effects of the MOVE:
+    if (data.visibility === "private") {
+      // Ensure the owner has PrivateAccess to their own now-private content so they can
+      // still see it in the Private section.
+      await db.privateAccess.upsert({
+        where: { mediaId_userId: { mediaId: id, userId: media.ownerId } },
+        update: {},
+        create: { mediaId: id, userId: media.ownerId },
+      });
+    } else {
+      // Moving back to public: clear all PrivateAccess grants so other users no longer
+      // see this in their Private section. The owner already has access via ownership.
+      await db.privateAccess.deleteMany({ where: { mediaId: id } });
     }
   }
 

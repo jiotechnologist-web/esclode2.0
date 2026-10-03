@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
       const adminIds = adminUsers.map((u) => u.id);
 
       const orClauses: any[] = [
-        // 1. User's own content
-        { ownerId: ctx.user.id },
+        // 1. User's own PUBLIC content only (private content lives in the Private view)
+        { ownerId: ctx.user.id, visibility: "public" },
       ];
 
       // 2. Admin's public content (with type permission filter)
@@ -65,13 +65,9 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      // 3. Private content shared with this user
-      if (canSeePrivate) {
-        orClauses.push({
-          visibility: "private",
-          privateAccess: { some: { userId: ctx.user.id } },
-        });
-      }
+      // 3. Private content shared with this user (only shown via visibility=private filter,
+      //    NOT in the default public listing — this is what makes "Move to Private" a real MOVE)
+      // -> excluded here on purpose.
 
       where.AND = [{ OR: orClauses }];
 
@@ -92,6 +88,8 @@ export async function GET(req: NextRequest) {
           ]
         }];
       }
+      // else (no visibility specified): only user's own PUBLIC + admin's PUBLIC content.
+      // User's own PRIVATE content is hidden from the default listing — that's the MOVE behavior.
     }
 
     if (favorites) {

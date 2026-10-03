@@ -78,9 +78,9 @@ export function HomeView() {
   };
 
   return (
-    <div className="min-h-screen pb-6">
+    <div className="pb-6">
       {/* Profile Header — gradient banner */}
-      <div className="relative bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 dark:from-emerald-900 dark:via-teal-900 dark:to-cyan-900 px-4 pt-6 pb-6">
+      <div className="relative bg-gradient-to-br from-emerald-600 via-teal-600 to-cyan-700 dark:from-emerald-900 dark:via-teal-900 dark:to-cyan-900 px-4 pt-5 pb-6 mt-3 rounded-2xl mx-3">
         <div className="absolute top-0 right-0 w-40 h-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full bg-cyan-400/20 blur-xl pointer-events-none" />
         <div className="relative flex items-center gap-4">
@@ -111,7 +111,7 @@ export function HomeView() {
         </div>
       </div>
 
-      {/* Content — NO negative margin, proper spacing */}
+      {/* Content — proper spacing, no negative margins, no overlap */}
       <div className="px-3 pt-4 space-y-4">
         {/* Storage + Upload row */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

@@ -2,7 +2,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import {
   Plus, Pin, Trash2, Search, StickyNote, Loader2, X, Check,
@@ -10,6 +9,7 @@ import {
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { Notepad } from "../../shared/notepad";
 
 interface Note {
   id: string;
@@ -34,13 +34,31 @@ function getColorClass(color: string) {
   return COLORS.find((c) => c.key === color) ?? COLORS[0];
 }
 
+// Convert plain text to HTML for Tiptap (one <p> per line, preserve line breaks)
+function plainToHtml(text: string): string {
+  if (!text) return "";
+  // If it already looks like HTML, leave it alone
+  if (/<[a-z][^>]*>/i.test(text)) return text;
+  return text
+    .split(/\r?\n/)
+    .map((line) => (line.trim() ? `<p>${escapeHtml(line)}</p>` : "<p></p>"))
+    .join("");
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export function NotesView() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showEditor, setShowEditor] = useState(false);
   const [editTitle, setEditTitle] = useState("");
-  const [editContent, setEditContent] = useState("");
+  const [editContent, setEditContent] = useState(""); // HTML
   const [editColor, setEditColor] = useState("default");
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -70,14 +88,14 @@ export function NotesView() {
 
   const openEdit = (note: Note) => {
     setEditTitle(note.title);
-    setEditContent(note.content);
+    setEditContent(plainToHtml(note.content));
     setEditColor(note.color);
     setEditId(note.id);
     setShowEditor(true);
   };
 
   const save = async () => {
-    if (!editTitle && !editContent) {
+    if (!editTitle && (!editContent || editContent === "<p></p>")) {
       setShowEditor(false);
       return;
     }
@@ -135,9 +153,11 @@ export function NotesView() {
     }
   };
 
+  // Strip HTML for search matching
+  const stripHtml = (html: string) => html?.replace(/<[^>]+>/g, " ") ?? "";
   const filtered = notes.filter((n) =>
     n.title.toLowerCase().includes(search.toLowerCase()) ||
-    n.content.toLowerCase().includes(search.toLowerCase())
+    stripHtml(n.content).toLowerCase().includes(search.toLowerCase())
   );
 
   const pinnedNotes = filtered.filter((n) => n.pinned);
@@ -167,7 +187,7 @@ export function NotesView() {
         <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search notes…" className="pl-9 h-10" />
       </div>
 
-      {/* Editor modal */}
+      {/* Editor modal — uses Tiptap rich-text Notepad */}
       <AnimatePresence>
         {showEditor && (
           <motion.div
@@ -181,7 +201,7 @@ export function NotesView() {
               initial={{ scale: 0.9, y: 20 }}
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.9, y: 20 }}
-              className={cn("w-full max-w-lg rounded-2xl shadow-2xl border", getColorClass(editColor).bg, getColorClass(editColor).border)}
+              className={cn("w-full max-w-2xl rounded-2xl shadow-2xl border overflow-hidden", getColorClass(editColor).bg, getColorClass(editColor).border)}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-4 space-y-3">
@@ -192,14 +212,13 @@ export function NotesView() {
                   className="text-base font-medium border-0 bg-transparent focus-visible:ring-0 px-0"
                   autoFocus
                 />
-                <Textarea
+                <Notepad
                   value={editContent}
-                  onChange={(e) => setEditContent(e.target.value)}
+                  onChange={setEditContent}
                   placeholder="Take a note…"
-                  className="border-0 bg-transparent focus-visible:ring-0 px-0 min-h-[200px] resize-none"
                 />
                 {/* Color picker */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 pt-1">
                   {COLORS.map((c) => (
                     <button
                       key={c.key}
@@ -278,6 +297,12 @@ export function NotesView() {
 
 function NoteCard({ note, onEdit, onDelete, onPin }: { note: Note; onEdit: () => void; onDelete: () => void; onPin: () => void }) {
   const colorClass = getColorClass(note.color);
+  // Render HTML content safely — strip paragraphs and show first lines
+  const preview = (note.content || "")
+    .replace(/<\/(p|h1|h2|h3|li|blockquote)>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .trim()
+    .slice(0, 220);
   return (
     <motion.div
       layout
@@ -291,7 +316,7 @@ function NoteCard({ note, onEdit, onDelete, onPin }: { note: Note; onEdit: () =>
         onClick={onEdit}
       >
         {note.title && <div className="font-medium text-sm mb-1">{note.title}</div>}
-        <div className="text-sm text-muted-foreground whitespace-pre-wrap line-clamp-6">{note.content || "Empty note"}</div>
+        <div className="text-sm text-muted-foreground line-clamp-6 whitespace-pre-wrap">{preview || "Empty note"}</div>
         <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
           <span className="text-[10px] text-muted-foreground">
             {new Date(note.updatedAt).toLocaleDateString()}
