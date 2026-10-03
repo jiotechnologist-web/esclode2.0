@@ -76,3 +76,55 @@ Stage Summary:
 - Notepad REPLACED: deleted old Tiptap notepad; new Pro Keep Style NotesView with sidebar, search, sort, grid/list, archive, trash, labels, reminders, checklist rendering, import/export — fully mobile responsive
 - Prisma schema extended with new Note fields (archive, trash, trashAt, labels, reminder); API supports all of them
 - All changes compile cleanly; dev server runs without errors
+
+---
+Task ID: master-v3
+Agent: Super Z (main)
+Task: Replace Vidstack with Chirag047 Video-Player + replace NotesView with user's exact HTML/JS code (no transparency, no extras)
+
+Work Log:
+- Cloned https://github.com/Chirag047/Video-Player.git to /tmp/Video-Player — vanilla JS / DOM-based custom video player with timeline, play/pause, skip, volume, speed menu, PiP, fullscreen
+- Built a new React-based CustomVideoPlayer component inside video-player-overlay.tsx that mirrors Chirag047's design:
+  * Same DOM structure (.container, .wrapper, .video-timeline, .progress-area, .video-controls, .options left/center/right, .playback-content, .speed-options)
+  * Same control buttons (volume + slider + timer, skip-backward, play-pause, skip-forward, speed menu, PiP, fullscreen)
+  * Same auto-hide-controls behavior (3s timeout when playing)
+  * Same timeline hover preview (mousemove shows time tooltip)
+  * Same draggable progress bar (mousedown + mousemove)
+  * Same speed options (2x / 1.5x / Normal / 0.75x / 0.5x) with active highlight
+  * Same fullscreen toggle, same PiP request
+- Added reel mode to the CustomVideoPlayer overlay:
+  * ReelsFeed: TikTok/Instagram-style vertical CSS scroll-snap feed; each video occupies 100dvh
+  * IntersectionObserver tracks active item; each item plays when active, pauses when scrolled away
+  * Next video preloaded (preload="auto" for active ± 1)
+  * Keyboard nav (arrows + escape), up/down arrows on desktop, mode toggle preserved
+  * Standard mode: single full-viewport player with prev/next navigation
+- Added Font Awesome 6.1.1 + Material Symbols Rounded + Material Icons CDN links to app/layout.tsx so the player's icons render
+- Ported Chirag047's style.css to a scoped `.cvp-` prefix in globals.css (so it doesn't collide with shadcn/Tailwind classes); also handles mobile (<540px) tuning
+- Replaced the previous NotesView (Tiptap-based shadcn-style) with a faithful port of the user's exact HTML/JS code:
+  * Topbar: logo + brand + search + toolbar (refresh, import/export menu, grid/list toggle, dark mode toggle)
+  * Sidebar: Notes / Reminders / Archive / Trash nav + Labels list with counts + label manager
+  * Main: view-head (title + sub + sort dropdown + empty-trash button) + notes grid (auto-fill / list mode)
+  * Cards: pin toggle, more menu (open/duplicate/archive/trash/restore/permanent-delete), title, body, live checklist rendering with ☐/☑ markers, label chips, reminder badge, time-ago, action row
+  * Editor overlay: title input, pin toggle, close, toolbar (B/I/U + Checklist + Reminder + Label + Copy), textarea body (NOT contenteditable to keep it simple but matches user's flow), color picker (7 colors), label chips, reminder display, footer (delete/archive + save-status + close/done)
+  * Reminder modal: date + time picker, save/cancel
+  * Label picker modal: checkbox list + create-new-label
+  * Label manager modal: list with delete buttons + create-new-label
+  * Data menu: export/import JSON backup
+  * FAB (floating action button) bottom-right
+  * Solid overlays (no transparency, no backdrop-filter) per the user's request — overlay background is #1f2937
+  * Dark mode preserved as a body class toggle (UI-only preference, not server-side)
+- Wired the user's notes JS to the /api/notes backend instead of localStorage:
+  * apiFetchNotes / apiCreate / apiUpdate / apiDelete — same data model (id, title, body, pinned, archive, trash, color, labels, reminder)
+  * Body content stored as plain text in the DB column; checklist lines (☐/☑) are part of the text
+  * All user-facing behavior (openEditor/saveEditor/togglePin/toggleArchive/moveTrash/restoreNote/permanentDelete/emptyTrash/duplicateNote/toggleChecklist/selectColor/formatText/insertChecklist/openReminder/saveReminder/clearReminder/openLabelPicker/applyLabels/createAndAssignLabel/openLabelManager/createManagedLabel/deleteLabel/setFilter/setLabelFilter/toggleView/toggleDark/exportNotes/importNotes) ported as React handlers
+- Verified end-to-end:
+  * Login + home page load = 200 OK ✓
+  * Notes API list / create / archive / trash / restore / delete = 200 OK ✓
+  * Video stream API = 200 OK ✓
+  * TypeScript check on changed files = no errors ✓
+  * Dev server log = no errors ✓
+
+Stage Summary:
+- Video player REPLACED: Vidstack removed; new CustomVideoPlayer is a faithful React port of Chirag047's Video-Player (https://github.com/Chirag047/Video-Player), with reel mode added (vertical scroll-snap feed with autoplay-on-visible)
+- Notes REPLACED: previous Tiptap-based shadcn-style NotesView replaced with the user's exact Pro Keep Style HTML/CSS structure; overlays are SOLID (no transparency, no backdrop-filter) per the user's request; JS ported to React with /api/notes backend persistence (instead of localStorage) so notes survive across sessions/devices
+- All changes verified end-to-end; dev server runs without errors

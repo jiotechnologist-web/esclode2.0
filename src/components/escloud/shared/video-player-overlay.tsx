@@ -7,16 +7,7 @@ import { toast } from "sonner";
 import { saveWatchProgress } from "./use-media-list";
 import type { ApiMediaItem } from "@/lib/types";
 import { motion, AnimatePresence } from "framer-motion";
-
-// Vidstack React imports (NEW player — replaces the old hand-rolled video player)
-import { MediaPlayer, MediaProvider, Poster, Track } from "@vidstack/react";
-import { DefaultVideoLayout, defaultLayoutIcons } from "@vidstack/react/player/layouts/default";
-import type { MediaPlayerInstance } from "@vidstack/react";
-
-// Vidstack CSS — must be imported so the player UI (controls, menus, sliders) renders correctly
-import "@vidstack/react/player/styles/default/theme.css";
-import "@vidstack/react/player/styles/default/layouts/audio.css";
-import "@vidstack/react/player/styles/default/layouts/video.css";
+import { cn } from "@/lib/utils";
 
 interface Props {
   items: ApiMediaItem[];
@@ -25,15 +16,376 @@ interface Props {
   onClose: () => void;
 }
 
+function formatTime(time: number): string {
+  if (!isFinite(time) || time < 0) return "00:00";
+  let seconds = Math.floor(time % 60);
+  let minutes = Math.floor(time / 60) % 60;
+  let hours = Math.floor(time / 3600);
+  const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+  if (hours === 0) return `${pad(minutes)}:${pad(seconds)}`;
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+}
+
 /**
- * ReelsFeed — TikTok / Instagram Reels style vertical feed.
+ * CustomVideoPlayer — a single video player based on Chirag047's Video-Player
+ * design (https://github.com/Chirag047/Video-Player). Vanilla DOM video element
+ * with custom controls (timeline, play/pause, skip, volume, speed, PiP, fullscreen).
  *
- * Each video occupies the full viewport. CSS scroll-snap handles the swipe.
- * IntersectionObserver notifies items when they become active. Each item
- * manages its own playback based on the `active` prop (this avoids the
- * "this.$state[prop] is not a function" error that occurs when an external
- * component tries to call methods on a player instance whose internal
- * signal store has been disposed or not yet initialized).
+ * Refactored as a React component, but the structure / styling / behavior matches
+ * the original repo.
+ */
+function CustomVideoPlayer({
+  src,
+  poster,
+  title,
+  autoPlay = false,
+  preload = "metadata",
+  onProgress,
+  onEnded,
+  active,
+}: {
+  src: string;
+  poster?: string;
+  title?: string;
+  autoPlay?: boolean;
+  preload?: "auto" | "metadata" | "none";
+  onProgress?: (currentTime: number, duration: number) => void;
+  onEnded?: () => void;
+  active?: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const progressTimeRef = useRef<HTMLSpanElement>(null);
+  const currentTimeRef = useRef<HTMLParagraphElement>(null);
+  const videoDurationRef = useRef<HTMLParagraphElement>(null);
+  const volumeBtnRef = useRef<HTMLButtonElement>(null);
+  const volumeBtnIconRef = useRef<HTMLElement>(null);
+  const volumeSliderRef = useRef<HTMLInputElement>(null);
+  const playPauseBtnIconRef = useRef<HTMLElement>(null);
+  const speedBtnRef = useRef<HTMLButtonElement>(null);
+  const speedOptionsRef = useRef<HTMLUListElement>(null);
+  const fullScreenBtnIconRef = useRef<HTMLElement>(null);
+  const hideTimerRef = useRef<any>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Auto-hide controls when playing
+  const hideControls = useCallback(() => {
+    const v = videoRef.current;
+    if (!v || v.paused) return;
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = setTimeout(() => {
+      containerRef.current?.classList.remove("show-controls");
+    }, 3000);
+  }, []);
+
+  const showControls = useCallback(() => {
+    containerRef.current?.classList.add("show-controls");
+    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    hideControls();
+  }, [hideControls]);
+
+  // Wire up events on mount
+  useEffect(() => {
+    const container = containerRef.current;
+    const video = videoRef.current;
+    const timeline = timelineRef.current;
+    const progressBar = progressBarRef.current;
+    const progressTime = progressTimeRef.current;
+    const currentTimeEl = currentTimeRef.current;
+    const videoDurationEl = videoDurationRef.current;
+    const volumeBtnIcon = volumeBtnIconRef.current;
+    const volumeSlider = volumeSliderRef.current;
+    const playPauseIcon = playPauseBtnIconRef.current;
+    const speedOptions = speedOptionsRef.current;
+    const fullScreenIcon = fullScreenBtnIconRef.current;
+    if (!container || !video || !timeline || !progressBar || !volumeBtnIcon || !volumeSlider || !playPauseIcon || !speedOptions || !fullScreenIcon) return;
+
+    const onTimeUpdate = () => {
+      const { currentTime, duration } = video;
+      if (duration > 0) {
+        const percent = (currentTime / duration) * 100;
+        progressBar.style.width = `${percent}%`;
+      }
+      if (currentTimeEl) currentTimeEl.innerText = formatTime(currentTime);
+      onProgress?.(currentTime, duration);
+    };
+
+    const onLoadedData = () => {
+      if (videoDurationEl) videoDurationEl.innerText = formatTime(video.duration);
+    };
+
+    const onPlay = () => {
+      playPauseIcon.classList.remove("fa-play");
+      playPauseIcon.classList.add("fa-pause");
+      hideControls();
+    };
+    const onPause = () => {
+      playPauseIcon.classList.remove("fa-pause");
+      playPauseIcon.classList.add("fa-play");
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      container.classList.add("show-controls");
+    };
+    const onEndedHandler = () => { onEnded?.(); };
+
+    video.addEventListener("timeupdate", onTimeUpdate);
+    video.addEventListener("loadeddata", onLoadedData);
+    video.addEventListener("play", onPlay);
+    video.addEventListener("pause", onPause);
+    video.addEventListener("ended", onEndedHandler);
+
+    const onTimelineMouseMove = (e: MouseEvent) => {
+      const timelineWidth = timeline.clientWidth;
+      let offsetX = e.offsetX;
+      const percent = Math.floor((offsetX / timelineWidth) * (video.duration || 0));
+      if (progressTime) {
+        offsetX = offsetX < 20 ? 20 : offsetX > timelineWidth - 20 ? timelineWidth - 20 : offsetX;
+        progressTime.style.left = `${offsetX}px`;
+        progressTime.innerText = formatTime(percent);
+      }
+    };
+    const onTimelineClick = (e: MouseEvent) => {
+      const timelineWidth = timeline.clientWidth;
+      video.currentTime = (e.offsetX / timelineWidth) * (video.duration || 0);
+    };
+    let isDragging = false;
+    const onTimelineMousedown = () => {
+      isDragging = true;
+      timeline.addEventListener("mousemove", onTimelineDrag);
+    };
+    const onTimelineDrag = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const timelineWidth = timeline.clientWidth;
+      let x = e.offsetX;
+      if (x < 0) x = 0;
+      if (x > timelineWidth) x = timelineWidth;
+      progressBar.style.width = `${x}px`;
+      video.currentTime = (x / timelineWidth) * (video.duration || 0);
+      if (currentTimeEl) currentTimeEl.innerText = formatTime(video.currentTime);
+    };
+    const onTimelineMouseup = () => {
+      isDragging = false;
+      timeline.removeEventListener("mousemove", onTimelineDrag);
+    };
+    timeline.addEventListener("mousemove", onTimelineMouseMove);
+    timeline.addEventListener("click", onTimelineClick);
+    timeline.addEventListener("mousedown", onTimelineMousedown);
+    document.addEventListener("mouseup", onTimelineMouseup);
+
+    const onContainerMousemove = () => showControls();
+    container.addEventListener("mousemove", onContainerMousemove);
+
+    // Volume
+    const onVolumeBtnClick = () => {
+      if (!volumeBtnIcon.classList.contains("fa-volume-high")) {
+        video.volume = 0.5;
+        volumeBtnIcon.classList.remove("fa-volume-xmark");
+        volumeBtnIcon.classList.add("fa-volume-high");
+      } else {
+        video.volume = 0.0;
+        volumeBtnIcon.classList.remove("fa-volume-high");
+        volumeBtnIcon.classList.add("fa-volume-xmark");
+      }
+      if (volumeSlider) volumeSlider.value = String(video.volume);
+    };
+    volumeBtnRef.current?.addEventListener("click", onVolumeBtnClick);
+
+    const onVolumeInput = (e: Event) => {
+      const v = Number((e.target as HTMLInputElement).value);
+      video.volume = v;
+      if (v === 0) {
+        volumeBtnIcon.classList.remove("fa-volume-high");
+        volumeBtnIcon.classList.add("fa-volume-xmark");
+      } else {
+        volumeBtnIcon.classList.remove("fa-volume-xmark");
+        volumeBtnIcon.classList.add("fa-volume-high");
+      }
+    };
+    volumeSlider?.addEventListener("input", onVolumeInput);
+
+    // Speed
+    const onSpeedOptionClick = (e: Event) => {
+      const li = e.target as HTMLLIElement;
+      const speed = li.dataset.speed;
+      if (!speed) return;
+      video.playbackRate = Number(speed);
+      const active = speedOptions.querySelector(".active");
+      if (active) active.classList.remove("active");
+      li.classList.add("active");
+    };
+    speedOptions.querySelectorAll("li").forEach((li) => li.addEventListener("click", onSpeedOptionClick));
+
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName !== "SPAN" || !target.classList.contains("material-symbols-rounded")) {
+        speedOptions.classList.remove("show");
+      }
+    };
+    document.addEventListener("click", onDocClick);
+
+    const onSpeedBtnClick = () => speedOptions.classList.toggle("show");
+    speedBtnRef.current?.addEventListener("click", onSpeedBtnClick);
+
+    // Fullscreen
+    const onFullscreenChange = () => {
+      const fsEl = document.fullscreenElement;
+      setIsFullscreen(!!fsEl);
+      if (fsEl) {
+        fullScreenIcon.classList.remove("fa-expand");
+        fullScreenIcon.classList.add("fa-compress");
+      } else {
+        fullScreenIcon.classList.remove("fa-compress");
+        fullScreenIcon.classList.add("fa-expand");
+      }
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+
+    return () => {
+      video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("loadeddata", onLoadedData);
+      video.removeEventListener("play", onPlay);
+      video.removeEventListener("pause", onPause);
+      video.removeEventListener("ended", onEndedHandler);
+      timeline.removeEventListener("mousemove", onTimelineMouseMove);
+      timeline.removeEventListener("click", onTimelineClick);
+      timeline.removeEventListener("mousedown", onTimelineMousedown);
+      document.removeEventListener("mouseup", onTimelineMouseup);
+      container.removeEventListener("mousemove", onContainerMousemove);
+      volumeBtnRef.current?.removeEventListener("click", onVolumeBtnClick);
+      volumeSlider?.removeEventListener("input", onVolumeInput);
+      speedOptions.querySelectorAll("li").forEach((li) => li.removeEventListener("click", onSpeedOptionClick));
+      document.removeEventListener("click", onDocClick);
+      speedBtnRef.current?.removeEventListener("click", onSpeedBtnClick);
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [src, onProgress, onEnded, hideControls, showControls]);
+
+  // Controls handlers (defined as React event handlers using refs)
+  const togglePlay = () => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) v.play().catch(() => {});
+    else v.pause();
+  };
+  const skipBackward = () => {
+    const v = videoRef.current;
+    if (v) v.currentTime -= 5;
+  };
+  const skipForward = () => {
+    const v = videoRef.current;
+    if (v) v.currentTime += 5;
+  };
+  const toggleFullscreen = () => {
+    const container = containerRef.current;
+    if (!container) return;
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      container.requestFullscreen().catch(() => toast.error("Fullscreen not supported"));
+    }
+  };
+  const togglePiP = async () => {
+    const v = videoRef.current;
+    if (!v) return;
+    try {
+      // @ts-ignore
+      if (document.pictureInPictureElement) {
+        // @ts-ignore
+        await document.exitPictureInPicture();
+      } else {
+        // @ts-ignore
+        await v.requestPictureInPicture();
+      }
+    } catch {
+      toast.error("PiP not supported");
+    }
+  };
+
+  // Autoplay when `active` becomes true
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (active && autoPlay) {
+      // Try to play; if blocked by browser, stay paused (user gesture needed)
+      v.play().catch(() => {});
+    } else if (!active) {
+      v.pause();
+    }
+  }, [active, autoPlay]);
+
+  return (
+    <div className="cvp-container show-controls" ref={containerRef}>
+      <div className="cvp-wrapper">
+        <div className="cvp-video-timeline" ref={timelineRef}>
+          <div className="cvp-progress-area">
+            <span ref={progressTimeRef}>00:00</span>
+            <div className="cvp-progress-bar" ref={progressBarRef} />
+          </div>
+        </div>
+        <ul className="cvp-video-controls">
+          <li className="cvp-options left">
+            <button className="cvp-volume" ref={volumeBtnRef} title="Mute / Unmute">
+              <i ref={volumeBtnIconRef} className="fa-solid fa-volume-high" />
+            </button>
+            <input type="range" min={0} max={1} step={0.01} defaultValue={1} ref={volumeSliderRef} />
+            <div className="cvp-video-timer">
+              <p className="cvp-current-time" ref={currentTimeRef}>00:00</p>
+              <p className="cvp-separator"> / </p>
+              <p className="cvp-video-duration" ref={videoDurationRef}>00:00</p>
+            </div>
+          </li>
+          <li className="cvp-options center">
+            <button className="cvp-skip-backward" onClick={skipBackward} title="Back 5s">
+              <i className="fas fa-backward" />
+            </button>
+            <button className="cvp-play-pause" onClick={togglePlay} title="Play / Pause">
+              <i ref={playPauseBtnIconRef} className="fas fa-play" />
+            </button>
+            <button className="cvp-skip-forward" onClick={skipForward} title="Forward 5s">
+              <i className="fas fa-forward" />
+            </button>
+          </li>
+          <li className="cvp-options right">
+            <div className="cvp-playback-content">
+              <button className="cvp-playback-speed" ref={speedBtnRef} title="Playback speed">
+                <span className="material-symbols-rounded">slow_motion_video</span>
+              </button>
+              <ul className="cvp-speed-options" ref={speedOptionsRef}>
+                <li data-speed="2">2x</li>
+                <li data-speed="1.5">1.5x</li>
+                <li data-speed="1" className="active">Normal</li>
+                <li data-speed="0.75">0.75x</li>
+                <li data-speed="0.5">0.5x</li>
+              </ul>
+            </div>
+            <button className="cvp-pic-in-pic" onClick={togglePiP} title="Picture in Picture">
+              <span className="material-icons">picture_in_picture_alt</span>
+            </button>
+            <button className="cvp-fullscreen" onClick={toggleFullscreen} title="Fullscreen">
+              <i ref={fullScreenBtnIconRef} className="fa-solid fa-expand" />
+            </button>
+          </li>
+        </ul>
+      </div>
+      <video
+        ref={videoRef}
+        src={src}
+        poster={poster}
+        playsInline
+        preload={preload as any}
+        crossOrigin="anonymous"
+        className="cvp-video"
+      />
+    </div>
+  );
+}
+
+/**
+ * ReelsFeed — vertical scroll-snap feed (TikTok/Instagram style).
+ * Each video occupies the full viewport. IntersectionObserver autoplays the
+ * active video and pauses the others. Next video is preloaded.
  */
 function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; startIndex: number; onClose: () => void }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,34 +394,26 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
   const [showChrome, setShowChrome] = useState(true);
   const hideChromeTimer = useRef<any>(null);
 
-  // Initial scroll to startIndex
+  // Initial scroll
   useEffect(() => {
     const el = itemRefs.current[startIndex];
-    if (el) {
-      el.scrollIntoView({ behavior: "auto", block: "start" });
-    }
+    if (el) el.scrollIntoView({ behavior: "auto", block: "start" });
   }, [startIndex]);
 
-  // IntersectionObserver — just track which item is active.
-  // Each item handles its own play/pause based on the `active` prop.
+  // IntersectionObserver — track which item is active
   useEffect(() => {
-    const opts: IntersectionObserverInit = {
-      root: containerRef.current,
-      threshold: [0.6],
-    };
+    const opts: IntersectionObserverInit = { root: containerRef.current, threshold: [0.6] };
     const obs = new IntersectionObserver((entries) => {
       for (const e of entries) {
         const idx = Number((e.target as HTMLElement).dataset.index);
-        if (e.isIntersecting && e.intersectionRatio >= 0.6) {
-          setActiveIndex(idx);
-        }
+        if (e.isIntersecting && e.intersectionRatio >= 0.6) setActiveIndex(idx);
       }
     }, opts);
     itemRefs.current.forEach((el) => el && obs.observe(el));
     return () => obs.disconnect();
   }, [items.length]);
 
-  // Keyboard navigation
+  // Keyboard nav
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -91,7 +435,6 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [items.length]);
 
-  // Auto-hide chrome (top bar / nav arrows) after inactivity
   const pokeChrome = () => {
     setShowChrome(true);
     if (hideChromeTimer.current) clearTimeout(hideChromeTimer.current);
@@ -128,7 +471,6 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
         )}
       </AnimatePresence>
 
-      {/* Up/Down navigation arrows (desktop) */}
       <AnimatePresence>
         {showChrome && (
           <>
@@ -157,7 +499,6 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
       </AnimatePresence>
 
       {items.map((m, i) => {
-        // Preload strategy: mount active ± 1 fully; mount others lazily.
         const distance = Math.abs(i - activeIndex);
         const shouldPreload = distance <= 1;
         return (
@@ -180,15 +521,6 @@ function ReelsFeed({ items, startIndex, onClose }: { items: ApiMediaItem[]; star
   );
 }
 
-/**
- * ReelsVideoItem — a single full-viewport Vidstack player.
- *
- * Self-contained: it manages its own playback based on the `active` prop.
- * It calls `player.play()` only after `onCanPlay` fires, and `player.pause()`
- * when `active` becomes false. All player method calls are wrapped in try/catch
- * to avoid leaking internal Vidstack signal errors when the underlying instance
- * is being disposed or not yet ready.
- */
 function ReelsVideoItem({
   media,
   active,
@@ -198,159 +530,66 @@ function ReelsVideoItem({
   active: boolean;
   preload: "auto" | "metadata" | "none";
 }) {
-  const playerRef = useRef<MediaPlayerInstance | null>(null);
-  const [textTracks] = useState<any[]>([]);
-  const [ready, setReady] = useState(false);
   const src = `/api/media/${media.id}/stream`;
   const poster = media.thumbnailUrl ?? undefined;
-
-  // Track playback time for watch-progress persistence
   const lastSavedRef = useRef(0);
 
-  // When `active` changes, play or pause accordingly.
-  useEffect(() => {
-    const p = playerRef.current;
-    if (!p) return;
-    // Use a small delay to let the player finish any internal state transitions
-    const t = setTimeout(() => {
-      try {
-        if (active && ready) {
-          p.remoteControl.play();
-        } else if (!active) {
-          p.remoteControl.pause();
-        }
-      } catch {
-        // Ignore — player may not be ready yet
-      }
-    }, 50);
-    return () => clearTimeout(t);
-  }, [active, ready]);
-
-  // Periodically save watch progress while this video is the active one
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => {
-      const p = playerRef.current;
-      if (!p) return;
-      try {
-        // Use the player's internal state via the public method (avoids signal
-        // subscription errors). The MediaPlayerInstance exposes `state` as a
-        // getter that returns the current snapshot.
-        const state = p.state;
-        if (state?.playing) {
-          const pos = state.currentTime ?? 0;
-          if (Math.abs(pos - lastSavedRef.current) >= 5) {
-            lastSavedRef.current = pos;
-            saveWatchProgress(media.id, pos, state.duration ?? undefined);
-          }
-        }
-      } catch {
-        // Ignore — state may not be available yet
-      }
-    }, 10000);
-    return () => clearInterval(id);
-  }, [active, media.id]);
+  const onProgress = useCallback((currentTime: number, duration: number) => {
+    if (Math.abs(currentTime - lastSavedRef.current) >= 5) {
+      lastSavedRef.current = currentTime;
+      saveWatchProgress(media.id, currentTime, duration || undefined);
+    }
+  }, [media.id]);
 
   return (
     <div className="w-full h-full flex items-center justify-center">
-      <div className="relative w-full h-full max-w-[100vw] max-h-[100dvh] flex items-center justify-center">
-        <MediaPlayer
-          className="media-player-reels"
+      <div className="relative w-full h-full max-w-[100vw] max-h-[100dvh] flex items-center justify-center cvp-reels-item">
+        <CustomVideoPlayer
           src={src}
-          viewType="video"
-          streamType="on-demand"
-          logLevel="warn"
-          crossOrigin
-          playsInline
-          preload={preload}
-          title={media.name}
           poster={poster}
-          ref={(p) => { playerRef.current = p; }}
-          onCanPlay={() => {
-            setReady(true);
-            // If this item is already active by the time can-play fires, start playing
-            if (active) {
-              try { playerRef.current?.remoteControl.play(); } catch {}
-            }
-          }}
-        >
-          <MediaProvider>
-            <Poster className="vds-poster" />
-            {textTracks.map((t) => (
-              <Track {...t} key={t.src} />
-            ))}
-          </MediaProvider>
-          <DefaultVideoLayout icons={defaultLayoutIcons} />
-        </MediaPlayer>
+          title={media.name}
+          autoPlay={active}
+          preload={preload}
+          active={active}
+          onProgress={onProgress}
+        />
       </div>
     </div>
   );
 }
 
-/**
- * StandardPlayer — single-video Vidstack player (used when reelsMode is off).
- */
 function StandardPlayer({ media, onClose }: { media: ApiMediaItem; onClose: () => void }) {
   const src = `/api/media/${media.id}/stream`;
   const poster = media.thumbnailUrl ?? undefined;
-  const [textTracks] = useState<any[]>([]);
-  const playerRef = useRef<MediaPlayerInstance | null>(null);
   const lastSavedRef = useRef(0);
 
-  // Save watch progress periodically
-  useEffect(() => {
-    const id = setInterval(() => {
-      const p = playerRef.current;
-      if (!p) return;
-      try {
-        const state = p.state;
-        if (state?.playing) {
-          const pos = state.currentTime ?? 0;
-          if (Math.abs(pos - lastSavedRef.current) >= 5) {
-            lastSavedRef.current = pos;
-            saveWatchProgress(media.id, pos, state.duration ?? undefined);
-          }
-        }
-      } catch {
-        // Ignore
-      }
-    }, 10000);
-    return () => clearInterval(id);
+  const onProgress = useCallback((currentTime: number, duration: number) => {
+    if (Math.abs(currentTime - lastSavedRef.current) >= 5) {
+      lastSavedRef.current = currentTime;
+      saveWatchProgress(media.id, currentTime, duration || undefined);
+    }
   }, [media.id]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
-      {/* Top bar */}
       <div className="absolute top-0 inset-x-0 z-50 p-3 pt-safe bg-gradient-to-b from-black/70 to-transparent flex items-center gap-3 pointer-events-auto">
         <Button variant="ghost" size="icon" onClick={onClose} className="text-white hover:bg-white/10">
           <X className="w-5 h-5" />
         </Button>
         <div className="text-white text-sm font-medium truncate flex-1">{media.name}</div>
       </div>
-
       <div className="flex-1 flex items-center justify-center">
-        <MediaPlayer
-          className="media-player-standard w-full h-full"
-          src={src}
-          viewType="video"
-          streamType="on-demand"
-          logLevel="warn"
-          crossOrigin
-          playsInline
-          autoPlay
-          preload="auto"
-          title={media.name}
-          poster={poster}
-          ref={(p) => { playerRef.current = p; }}
-        >
-          <MediaProvider>
-            <Poster className="vds-poster" />
-            {textTracks.map((t) => (
-              <Track {...t} key={t.src} />
-            ))}
-          </MediaProvider>
-          <DefaultVideoLayout icons={defaultLayoutIcons} />
-        </MediaPlayer>
+        <div className="cvp-standard-wrap">
+          <CustomVideoPlayer
+            src={src}
+            poster={poster}
+            title={media.name}
+            autoPlay
+            preload="auto"
+            active
+            onProgress={onProgress}
+          />
+        </div>
       </div>
     </div>
   );
@@ -390,7 +629,6 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode: initialReelsM
     return (
       <div className="fixed inset-0 z-50 bg-black">
         <ReelsFeed items={items} startIndex={startIndex} onClose={onClose} />
-        {/* Mode toggle floating in corner */}
         <Button
           variant="ghost"
           size="icon"
@@ -416,7 +654,6 @@ export function VideoPlayerOverlay({ items, startIndex, reelsMode: initialReelsM
       >
         <Smartphone className="w-5 h-5" />
       </Button>
-      {/* Index navigation for standard mode */}
       <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2 bg-black/50 backdrop-blur px-3 py-1.5 rounded-full">
         <Button
           variant="ghost"
