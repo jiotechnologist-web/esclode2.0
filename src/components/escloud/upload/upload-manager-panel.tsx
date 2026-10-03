@@ -96,7 +96,7 @@ export function UploadManagerPanel() {
             exit={{ opacity: 0, scale: 0.8, y: 20 }}
             transition={{ type: "spring", stiffness: 300, damping: 25 }}
             onClick={() => setShowPanel(true)}
-            className="hidden md:flex fixed bottom-6 right-6 z-40 items-center gap-3 pl-4 pr-5 py-3 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-xl shadow-emerald-500/30 hover:scale-105 transition-all"
+            className="flex fixed bottom-20 md:bottom-6 right-4 z-40 items-center gap-2 pl-3 pr-4 py-2.5 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 text-white shadow-xl shadow-emerald-500/30 hover:scale-105 transition-all"
           >
             <div className="relative">
               {active > 0 ? (

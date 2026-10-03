@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Sun, Moon, Monitor, LogOut, Cloud, Menu, X, MoreHorizontal, Home, Video, Image as ImageIcon,
   Lock, FileText, Users, Upload, Heart, History, UserCircle, Settings as SettingsIcon,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { GlobalSearch } from "../shared/global-search";
 import { toast } from "sonner";
@@ -237,10 +238,17 @@ export function UserShell({ navItems, children }: Props) {
             <Button
               variant="ghost"
               size="sm"
-              className="w-full h-8 text-xs text-muted-foreground hover:text-foreground"
+              className="w-full h-9 text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5"
               onClick={() => setSidebarCollapsed((v) => !v)}
             >
-              {sidebarCollapsed ? "→" : "← Collapse"}
+              {sidebarCollapsed ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <>
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Collapse</span>
+                </>
+              )}
             </Button>
           </div>
         </motion.aside>

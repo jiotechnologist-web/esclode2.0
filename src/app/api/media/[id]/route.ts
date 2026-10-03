@@ -165,8 +165,21 @@ export async function PATCH(
   const data: any = {};
   if (body.name !== undefined) data.name = String(body.name).slice(0, 200);
   if (body.folderId !== undefined) data.folderId = body.folderId;
-  if (body.visibility !== undefined && isAdmin) {
-    data.visibility = body.visibility === "private" ? "private" : "public";
+
+  // Owner can change their own content visibility (if they have private_access)
+  if (body.visibility !== undefined) {
+    if (isAdmin) {
+      data.visibility = body.visibility === "private" ? "private" : "public";
+    } else if (isOwner) {
+      // User can make their own content private if they have private_access permission
+      if (body.visibility === "private") {
+        const hasPrivateAccess = ctx.user.permissions.includes("private_access");
+        if (!hasPrivateAccess) return jsonError("You need Private Access permission to make content private", 403);
+        data.visibility = "private";
+      } else {
+        data.visibility = "public";
+      }
+    }
   }
 
   await db.media.update({ where: { id }, data });

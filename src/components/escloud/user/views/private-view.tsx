@@ -5,19 +5,32 @@ import { MediaGrid, MediaSkeleton, EmptyState } from "../../shared/media-card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Lock, Search, Shield, Loader2, Eye, EyeOff } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Lock, Search, Shield, Loader2, Eye, EyeOff, Upload } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth";
+import { useUploadStore } from "@/stores/upload";
+import { hasPermission, PERMISSIONS } from "@/lib/permissions";
+import { UploadButton } from "../../shared/upload-button";
 
 export function PrivateView() {
   const user = useAuthStore((s) => s.user);
+  const addFiles = useUploadStore((s) => s.addFiles);
   const [search, setSearch] = useState("");
   const [unlocked, setUnlocked] = useState(false);
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
   const [pwdInput, setPwdInput] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [verifying, setVerifying] = useState(false);
+
+  const hasPrivateAccess = user ? hasPermission(user.permissions, PERMISSIONS.PRIVATE_ACCESS) : false;
+  const canUpload = user?.uploadEnabled && hasPrivateAccess && (
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_VIDEOS) ||
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_PHOTOS) ||
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_DOCUMENTS) ||
+    hasPermission(user.permissions, PERMISSIONS.UPLOAD_CONTACTS)
+  );
 
   // Check if user has a private password set
   useEffect(() => {
@@ -141,6 +154,17 @@ export function PrivateView() {
           <h1 className="text-xl font-bold">Private</h1>
           <p className="text-xs text-muted-foreground">{items.length} private files</p>
         </div>
+        {hasPrivateAccess && canUpload && (
+          <UploadButton
+            label="Upload"
+            size="sm"
+            className="bg-gradient-to-r from-amber-500 to-orange-500 text-white"
+            onFiles={async (files) => {
+              await addFiles(files, { visibility: "private" });
+              toast.success(`Uploading ${files.length} private file(s)`);
+            }}
+          />
+        )}
         {hasPassword && (
           <Button variant="ghost" size="sm" onClick={() => { setUnlocked(false); setPwdInput(""); }}>
             <Lock className="w-3.5 h-3.5 mr-1" /> Lock
@@ -184,5 +208,3 @@ export function PrivateView() {
     </div>
   );
 }
-
-import { Badge } from "@/components/ui/badge";
