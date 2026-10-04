@@ -425,3 +425,51 @@ Stage Summary:
 - Upload works again — all 4 API routes recreated (init/chunk/complete/cancel)
 - QR scanner icon button added to home page profile banner (next to settings icon),
   uses the lucide QrCode icon (no text), only visible if user has qr_scan permission
+
+---
+Task ID: master-v11
+Agent: Super Z (main)
+Task: Fix video thumbnail not showing for some uploads
+
+Work Log:
+- User reported that a freshly uploaded video (7215.mp4, 5.3MB) showed a placeholder
+  video camera icon instead of a thumbnail, and the duration showed "0:00".
+- Root cause: the original generateVideoThumbnail used `-ss 00:00:01` AFTER `-i`
+  (slow seek). For phone-recorded videos (especially HEVC/H.265 or fragmented MP4),
+  slow-seek to 1 second fails because there's no keyframe at exactly 1 second,
+  and ffmpeg returns no output → thumbnailRel = "" → Media.thumbnailPath = null →
+  API returns thumbnailUrl: null → card shows placeholder icon.
+- Rewrote src/lib/video-thumb.ts to be much more robust:
+  1. New probeVideoMetadata() function tries multiple ffprobe approaches:
+     - stream=width,height,duration (standard)
+     - format=duration (fallback for fragmented MP4)
+     - stream=width,height alone (if stream duration was null)
+  2. New tryGenerateAt() function uses FAST seek (`-ss` BEFORE `-i`) which seeks
+     to the nearest keyframe — much more reliable for phone videos.
+  3. generateVideoThumbnail() now tries multiple timestamps in order:
+     - If duration is known: 1s, 10% of duration, 0.5s, 0.1s, 0
+     - If duration unknown: 1s, 0.5s, 0.1s, 0
+     - Last resort: no seek at all (decode from start)
+  4. Each attempt verifies the output file is non-empty before accepting it.
+  5. Returns thumbnailRel as empty string only if ALL attempts fail.
+- Added POST /api/media/regenerate-thumbnails endpoint:
+  - Admin can bulk-regenerate all videos missing thumbnails/duration
+  - Regular users can regenerate their OWN videos by passing mediaId
+  - Returns { processed, success, failed, errors[] }
+- Added "Regenerate thumbnail" option to the media card dropdown menu (only for
+  videos). Calls the endpoint with { mediaId: item.id }. On success, broadcasts
+  "escloud-data-changed" so all media lists refresh and the new thumbnail appears.
+- Verified end-to-end:
+  * Upload a real mp4 → thumbnail generated, duration extracted (9.5s) ✓
+  * Regenerate endpoint as demo user → processed:1, success:1 ✓
+  * Bulk regenerate as non-admin → 403 (correct) ✓
+  * Home page loads HTTP 200 ✓
+  * TypeScript check passes ✓
+
+Stage Summary:
+- Video thumbnails now generate reliably for phone-recorded HEVC/fragmented MP4
+  via multi-timestamp fast-seek fallbacks
+- Duration extraction is more robust (tries stream duration, then format duration)
+- Users can fix broken thumbnails via "Regenerate thumbnail" in the video card
+  dropdown menu (3-dot menu → Regenerate thumbnail)
+- Admins can bulk-fix all broken thumbnails via POST /api/media/regenerate-thumbnails

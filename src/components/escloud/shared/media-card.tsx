@@ -28,6 +28,7 @@ import {
   Clock,
   RotateCw,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import type { ApiMediaItem } from "@/lib/types";
 import { useUIStore } from "@/stores/ui";
@@ -121,6 +122,43 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
     }
   };
 
+  // Regenerate video thumbnail + extract duration/width/height (admin only, videos only).
+  // Fixes videos that have a missing thumbnail or "0:00" duration.
+  const handleRegenerateThumbnail = async (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    e?.preventDefault();
+    if (item.type !== "video") {
+      toast.error("Only videos can regenerate thumbnails");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await fetch("/api/media/regenerate-thumbnails", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaId: item.id }),
+      });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.error ?? "Failed");
+      }
+      const d = await r.json();
+      if (d.success > 0) {
+        toast.success("Thumbnail regenerated");
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("escloud-data-changed", { detail: { type: "thumbnail", mediaId: item.id } }));
+        }
+        onChange?.();
+      } else {
+        toast.error("Could not generate thumbnail — the video format may not be supported.");
+      }
+    } catch (e: any) {
+      toast.error(e?.message ?? "Failed to regenerate thumbnail");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const Icon = item.type === "video" ? VideoIcon : item.type === "photo" ? ImageIcon : item.type === "contact" ? UsersIcon : FileText;
 
   if (view === "list") {
@@ -182,6 +220,11 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
                 {item.visibility === "private" ? <Globe className="w-3.5 h-3.5 mr-2" /> : <Lock className="w-3.5 h-3.5 mr-2" />}
                 {item.visibility === "private" ? "Make Public" : "Move to Private"}
               </DropdownMenuItem>
+              {item.type === "video" && (
+                <DropdownMenuItem onClick={handleRegenerateThumbnail}>
+                  <RefreshCw className="w-3.5 h-3.5 mr-2" />Regenerate thumbnail
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-rose-600" onClick={handleDelete}><Trash2 className="w-3.5 h-3.5 mr-2" />Delete</DropdownMenuItem>
             </DropdownMenuContent>
@@ -296,6 +339,11 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
               {item.visibility === "private" ? <Globe className="w-3.5 h-3.5 mr-2" /> : <Lock className="w-3.5 h-3.5 mr-2" />}
               {item.visibility === "private" ? "Make Public" : "Move to Private"}
             </DropdownMenuItem>
+            {item.type === "video" && (
+              <DropdownMenuItem onClick={handleRegenerateThumbnail}>
+                <RefreshCw className="w-3.5 h-3.5 mr-2" />Regenerate thumbnail
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="text-rose-600" onClick={handleDelete}><Trash2 className="w-3.5 h-3.5 mr-2" />Delete</DropdownMenuItem>
           </DropdownMenuContent>
