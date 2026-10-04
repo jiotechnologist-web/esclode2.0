@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -23,7 +23,7 @@ model User {
   role            String   @default("user") // "user" | "admin"
   status          String   @default("active") // "active" | "suspended" | "deleted"
   mustChangePwd   Boolean  @default(false)
-  permissions     String   @default("") // JSON-encoded string of permission keys
+  permissions     String   @db.VarChar(5000) @default("") // JSON-encoded string of permission keys
   storageQuota    BigInt   @default(10737418240) // 10 GB default
   uploadMaxBytes  BigInt   @default(2147483648) // 2 GB per file
   downloadMaxBytes BigInt @default(0) // 0 = unlimited
@@ -33,7 +33,7 @@ model User {
   downloadEnabled Boolean  @default(true)
   approvalRequired Boolean @default(false) // user uploads require admin approval
   expiresAt       DateTime?
-  // Private content password (requirement #1) — bcrypt hashed, never exposed
+  // Private content password — bcrypt hashed, never exposed
   privatePasswordHash String? @default("")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -128,7 +128,7 @@ model Media {
   // HLS for videos
   hlsPath      String?
   // Photo specific
-  exifData     String?
+  exifData     String? @db.Text
   // Document specific
   docType      String?  // "pdf" | "doc" | "docx" | "xls" | "xlsx" | "ppt" | "pptx" | "txt" | "csv" | "zip" | "rar" | "7z" | "apk" | "other"
   // Contact specific
@@ -256,7 +256,7 @@ model Upload {
   status       String   @default("waiting") // "waiting" | "uploading" | "completed" | "failed" | "cancelled" | "paused"
   sha256       String?
   mediaId      String?  // created Media record after completion
-  errorMessage  String?
+  errorMessage  String? @db.Text
   startedAt    DateTime @default(now())
   completedAt  DateTime?
   updatedAt    DateTime @updatedAt
@@ -287,10 +287,10 @@ model VideoProcessingJob {
   media     Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
   status    String   @default("queued") // "queued" | "processing" | "completed" | "failed"
   progress  Int      @default(0)
-  qualities String   @default("") // JSON array e.g. ["1080p","720p","480p"]
+  qualities String   @db.VarChar(1000) @default("") // JSON array e.g. ["1080p","720p","480p"]
   thumbnailPath String?
   hlsPath   String?
-  errorMessage String?
+  errorMessage String? @db.Text
   startedAt DateTime?
   completedAt DateTime?
   createdAt DateTime @default(now())
@@ -359,8 +359,8 @@ model AdminActivityLog {
   targetUserId String?
   target      User?    @relation("AdminTarget", fields: [targetUserId], references: [id])
   action      String   // "user.create" | "user.delete" | "user.suspend" | "password.reset" | ...
-  targetContent String?
-  metadata    String   // JSON string
+  targetContent String? @db.Text
+  metadata    String   @db.Text // JSON string
   ip          String?
   createdAt   DateTime @default(now())
 
@@ -375,7 +375,7 @@ model Notification {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   title     String
-  body      String
+  body      String   @db.Text
   type      String   @default("info") // "info" | "warning" | "error" | "success"
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -387,7 +387,7 @@ model Notification {
 model SystemSetting {
   id    String @id @default(cuid())
   key   String @unique
-  value String
+  value String @db.Text
   updatedAt DateTime @updatedAt
 }
 
@@ -418,9 +418,9 @@ model UserNavPref {
   id        String   @id @default(cuid())
   userId    String   @unique
   // JSON-encoded array of view keys in display order; first 5 are shown as primary
-  primaryItems String @default("[]")
+  primaryItems String @db.VarChar(5000) @default("[]")
   // JSON-encoded array of view keys hidden from the More menu
-  hiddenItems  String @default("[]")
+  hiddenItems  String @db.VarChar(5000) @default("[]")
   // User video settings — preloadVideos defaults to TRUE per requirement #1
   preloadVideos Boolean @default(true)
   advancedVideoPlay Boolean @default(true)
@@ -460,4 +460,3 @@ model Note {
   @@index([archive])
   @@index([trash])
 }
-

@@ -1,4 +1,4 @@
-// Seed script: creates only the default admin account + system settings.
+// Seed script for a fresh database. For an existing migrated database, no seed is needed.
 import { db } from "../src/lib/db";
 import { hashPassword } from "../src/lib/auth";
 import { DEFAULT_USER_PERMISSIONS, serializePermissions } from "../src/lib/permissions";
@@ -6,31 +6,37 @@ import { DEFAULT_USER_PERMISSIONS, serializePermissions } from "../src/lib/permi
 async function main() {
   console.log("Seeding Escloud database...");
 
-  // Default admin
-  const adminEmail = "jiotechnologist@gmail.com";
-  const adminPwd = "741504";
-  const existingAdmin = await db.user.findUnique({ where: { email: adminEmail } });
-  if (!existingAdmin) {
-    await db.user.create({
-      data: {
-        username: "admin",
-        email: adminEmail,
-        passwordHash: await hashPassword(adminPwd),
-        displayName: "Escloud Administrator",
-        role: "admin",
-        status: "active",
-        mustChangePwd: true,
-        permissions: serializePermissions([...DEFAULT_USER_PERMISSIONS, "admin"]),
-        storageQuota: BigInt(1024 * 1024 * 1024 * 1024),
-        uploadMaxBytes: BigInt(100 * 1024 * 1024 * 1024),
-      },
-    });
-    console.log(`Created default admin: ${adminEmail}`);
+  const adminEmail = process.env.ESCLOUD_ADMIN_EMAIL?.trim() || "jiotechnologist@gmail.com";
+  const adminPassword = process.env.ESCLOUD_ADMIN_PASSWORD || "741504";
+
+  if (adminEmail && adminPassword) {
+    if (adminPassword.length < 6) {
+      throw new Error("ESCLOUD_ADMIN_PASSWORD must contain at least 6 characters.");
+    }
+    const existingAdmin = await db.user.findUnique({ where: { email: adminEmail } });
+    if (!existingAdmin) {
+      await db.user.create({
+        data: {
+          username: process.env.ESCLOUD_ADMIN_USERNAME?.trim() || "admin",
+          email: adminEmail,
+          passwordHash: await hashPassword(adminPassword),
+          displayName: process.env.ESCLOUD_ADMIN_NAME?.trim() || "Escloud Administrator",
+          role: "admin",
+          status: "active",
+          mustChangePwd: true,
+          permissions: serializePermissions([...DEFAULT_USER_PERMISSIONS, "admin"]),
+          storageQuota: BigInt(1024 * 1024 * 1024 * 1024),
+          uploadMaxBytes: BigInt(100 * 1024 * 1024 * 1024),
+        },
+      });
+      console.log(`Created admin: ${adminEmail}`);
+    } else {
+      console.log(`Admin already exists: ${adminEmail}`);
+    }
   } else {
-    console.log(`Admin already exists: ${adminEmail}`);
+    console.log("Admin creation skipped. Set ESCLOUD_ADMIN_EMAIL and ESCLOUD_ADMIN_PASSWORD to create a fresh admin.");
   }
 
-  // Default system settings
   const defaults: Record<string, string> = {
     "app.name": "Escloud",
     "app.theme": "system",
@@ -44,14 +50,13 @@ async function main() {
     "registration.enabled": "off",
     "maintenance.mode": "off",
   };
+
   for (const [key, value] of Object.entries(defaults)) {
     const existing = await db.systemSetting.findUnique({ where: { key } });
-    if (!existing) {
-      await db.systemSetting.create({ data: { key, value } });
-    }
+    if (!existing) await db.systemSetting.create({ data: { key, value } });
   }
+
   console.log("System settings seeded.");
-  console.log("Seed complete.");
 }
 
 main()

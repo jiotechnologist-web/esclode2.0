@@ -1,12 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  // Hostinger runs the normal Next.js server (`next start`).
+  reactStrictMode: false,
+  // The original project contains a few legacy UI type mismatches. Keep
+  // production deployment from being blocked by those non-runtime errors.
   typescript: {
     ignoreBuildErrors: true,
   },
-  reactStrictMode: false,
-  allowedDevOrigins: ["*.space-z.ai", "localhost"],
 };
 
 export default nextConfig;
