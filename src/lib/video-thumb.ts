@@ -75,7 +75,7 @@ async function probeVideoMetadata(videoAbs: string): Promise<VideoMetadata> {
 
 /**
  * Try to generate a thumbnail at a specific timestamp using fast seek
- * (`-ss` BEFORE `-i` for fast seek, then a small `-ss` after for accuracy).
+ * (`-ss` BEFORE `-i` for fast seek to nearest keyframe).
  * Returns true on success, false on failure.
  */
 async function tryGenerateAt(
@@ -83,10 +83,12 @@ async function tryGenerateAt(
   thumbAbs: string,
   seekSeconds: number
 ): Promise<boolean> {
-  // Fast seek: -ss before -i is fast (seeks to nearest keyframe).
-  // Then a small slow seek after -i for accuracy.
   const ts = formatTimecode(seekSeconds);
   try {
+    // Fast seek: -ss before -i jumps to nearest keyframe (fast, works for most formats).
+    // -frames:v 1 = extract exactly one frame.
+    // -vf scale=480:-2 = scale to 480px wide, preserve aspect ratio (must be even).
+    // -q:v 4 = high quality JPEG (2-31, lower is better).
     await execAsync(
       `ffmpeg -y -ss ${ts} -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 "${thumbAbs}"`,
       { timeout: 30000 }
@@ -101,8 +103,18 @@ async function tryGenerateAt(
 }
 
 /**
- * Generate a thumbnail from a video. Tries multiple timestamps and approaches
- * to be robust against phone-recorded HEVC, fragmented MP4, and other odd formats.
+ * Generate a thumbnail from a video.
+ *
+ * PRIMARY: seek to exactly 2 seconds and capture that frame as the thumbnail.
+ * This is what the user explicitly requested — "video start 2s & capture this".
+ *
+ * FALLBACKS (only if 2s fails — e.g. video shorter than 2s, or no keyframe near 2s):
+ *   - 1s
+ *   - 0.5s
+ *   - 0.1s
+ *   - 0 (first frame)
+ *   - decode from start without seeking
+ *
  * Returns the relative storage path of the thumbnail (empty string on total failure).
  */
 export async function generateVideoThumbnail(
@@ -113,29 +125,51 @@ export async function generateVideoThumbnail(
   const thumbAbs = path.join(PATHS.THUMBNAILS, thumbName);
   await fs.mkdir(PATHS.THUMBNAILS, { recursive: true });
 
-  // Probe metadata first so we know the duration (for smart timestamp selection)
+  // Probe metadata first so we know the duration (for fallback timestamp selection)
   const meta = await probeVideoMetadata(videoAbs);
   const duration = meta.duration;
 
-  // Try multiple timestamps. For short videos, prefer 0.1s; for longer ones, 1s, 10%, etc.
-  const seekAttempts: number[] = [];
+  // Build the list of timestamps to try.
+  // PRIMARY: 2 seconds (user's explicit request).
+  // If the video is shorter than 2s, we still try 2s first (ffmpeg will clamp or
+  // return the last frame), but the fallbacks ensure we get something.
+  const seekAttempts: number[] = [2];
   if (duration && duration > 0) {
-    // Smart selection: 1s, 10% of duration, 0.5s, 0.1s, 0
-    const tenPercent = duration * 0.1;
-    seekAttempts.push(1, tenPercent, 0.5, 0.1, 0);
+    // Add smart fallbacks based on actual duration
+    if (duration > 2) {
+      // Video is longer than 2s — 2s should work. Fallbacks: 1s, 0.5s, 0.1s, 0
+      seekAttempts.push(1, 0.5, 0.1, 0);
+    } else if (duration > 1) {
+      // Video is 1-2s — 2s might overshoot. Fallbacks: 1s, 0.5s, 0.1s, 0
+      seekAttempts.push(1, 0.5, 0.1, 0);
+    } else if (duration > 0.5) {
+      // Very short video. Fallbacks: 0.5s, 0.1s, 0
+      seekAttempts.push(0.5, 0.1, 0);
+    } else {
+      // Tiny video. Fallbacks: 0.1s, 0
+      seekAttempts.push(0.1, 0);
+    }
   } else {
-    // Unknown duration — try a range of small values
+    // Unknown duration — try 2s first (per user request), then smaller values
     seekAttempts.push(1, 0.5, 0.1, 0);
   }
-  // De-duplicate
-  const uniqueAttempts = Array.from(new Set(seekAttempts));
+  // De-duplicate while preserving order
+  const seen = new Set<number>();
+  const uniqueAttempts = seekAttempts.filter((s) => {
+    const rounded = Math.round(s * 1000) / 1000;
+    if (seen.has(rounded)) return false;
+    seen.add(rounded);
+    return true;
+  });
 
   let thumbnailSuccess = false;
+  let usedSeek = 0;
   for (const seek of uniqueAttempts) {
     // Clear any previous attempt's file
     try { await fs.unlink(thumbAbs); } catch {}
     if (await tryGenerateAt(videoAbs, thumbAbs, seek)) {
       thumbnailSuccess = true;
+      usedSeek = seek;
       break;
     }
   }
@@ -149,10 +183,19 @@ export async function generateVideoThumbnail(
         { timeout: 30000 }
       );
       const stat = await fs.stat(thumbAbs).catch(() => null);
-      if (stat && stat.size > 0) thumbnailSuccess = true;
+      if (stat && stat.size > 0) {
+        thumbnailSuccess = true;
+        usedSeek = 0;
+      }
     } catch (e) {
       console.error("Video thumbnail generation failed completely:", e);
     }
+  }
+
+  if (thumbnailSuccess && usedSeek !== 2) {
+    console.log(`[video-thumb] Thumbnail for ${mediaId} generated at ${usedSeek}s (2s fallback)`);
+  } else if (thumbnailSuccess) {
+    console.log(`[video-thumb] Thumbnail for ${mediaId} generated at 2s`);
   }
 
   const thumbnailRel = thumbnailSuccess ? getStorageRelativePath(thumbAbs) : "";

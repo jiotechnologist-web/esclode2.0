@@ -3,9 +3,12 @@ import { db } from "@/lib/db";
 import { getRequestContext, jsonError, canAccessMedia } from "@/lib/api";
 import { resolveStoragePath } from "@/lib/storage";
 import { promises as fs } from "fs";
+import { createReadStream } from "fs";
 import { rangeHeaderToParts } from "@/lib/media";
 
 // GET /api/media/[id]/stream — supports HTTP Range requests for video/audio
+// OPTIMIZED: streams directly from disk via createReadStream, never loads
+// the entire file into memory. Uses longer cache for public content.
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -29,24 +32,31 @@ export async function GET(
     const range = req.headers.get("range");
     const parts = rangeHeaderToParts(range, total);
 
+    // Cache strategy: public content can be cached by intermediate proxies/CDN
+    // for longer (1 hour), private content should use short cache + private
+    const isPublic = media.visibility === "public";
+    const cacheControl = isPublic
+      ? "public, max-age=3600, s-maxage=86400"
+      : "private, max-age=600";
+
     if (parts) {
       const { start, end } = parts;
       const length = end - start + 1;
-      const stream = (await fs.open(abs, "r")).createReadStream({ start, end });
+      const stream = createReadStream(abs, { start, end });
       const headers = new Headers();
       headers.set("Content-Range", `bytes ${start}-${end}/${total}`);
       headers.set("Accept-Ranges", "bytes");
       headers.set("Content-Length", String(length));
       headers.set("Content-Type", media.mimeType || "application/octet-stream");
-      headers.set("Cache-Control", "private, max-age=600");
+      headers.set("Cache-Control", cacheControl);
       return new Response(stream as any, { status: 206, headers });
     } else {
-      const stream = (await fs.open(abs, "r")).createReadStream();
+      const stream = createReadStream(abs);
       const headers = new Headers();
       headers.set("Content-Length", String(total));
       headers.set("Accept-Ranges", "bytes");
       headers.set("Content-Type", media.mimeType || "application/octet-stream");
-      headers.set("Cache-Control", "private, max-age=600");
+      headers.set("Cache-Control", cacheControl);
       return new Response(stream as any, { status: 200, headers });
     }
   } catch (e: any) {

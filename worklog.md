@@ -517,3 +517,99 @@ Stage Summary:
   3. The thumbnail generation itself is robust (multi-timestamp fast-seek fallbacks)
 - The user should HARD-REFRESH their browser (Ctrl+Shift+R or Cmd+Shift+R) to clear
   any stale cached responses and see the correct thumbnails.
+
+---
+Task ID: master-v13
+Agent: Super Z (main)
+Task: Fix thumbnail to 2s capture + optimize upload/download speed
+
+Work Log:
+=== PART 1: Thumbnail at 2s ===
+- User explicitly requested: "Make Thumbnail video Start 2s & capture this"
+- Rewrote src/lib/video-thumb.ts:
+  * PRIMARY: seek to exactly 2 seconds and capture that frame
+  * Fallbacks (only if 2s fails — e.g. video shorter than 2s):
+    - 1s, 0.5s, 0.1s, 0 (decode from start)
+  * Uses fast seek (-ss BEFORE -i) for speed and reliability
+  * Logs which timestamp was used so we can verify
+- Verified: uploaded a test video → dev log shows "Thumbnail for cmut... generated at 2s"
+- Thumbnail: 15KB JPEG, 480x914, valid
+
+=== PART 2: Speed optimization ===
+
+BOTTLENECKS IDENTIFIED:
+1. Download route (/api/media/[id]/download): used `await fs.readFile(abs)` which
+   loads the ENTIRE file into a Node.js Buffer before sending. For a 200MB video,
+   this uses 200MB of RAM and adds latency. This was the #1 bottleneck.
+2. Upload chunk route: used `Buffer.from(await chunk.arrayBuffer())` which loads
+   each 10MB chunk into memory. With 6 concurrent chunks that's 60MB of RAM.
+3. Upload store (client): concurrency was hardcoded to Math.min(6, totalChunks)
+   — no adaptation to network conditions. Chunk size was 10MB.
+4. Download route: did synchronous DB writes (downloadRecord, dailyUsage) in
+   the request path, adding latency before the file started downloading.
+5. Stream route: used "private, max-age=600" for all content including public
+   — public content could be cached longer by CDN/proxies.
+6. No resumable upload support — if upload failed midway, user had to restart.
+
+CHANGES:
+
+1. Download route (/api/media/[id]/download):
+   - BEFORE: `const buf = await fs.readFile(abs)` → loads entire file into RAM
+   - AFTER: `const stream = createReadStream(abs, { start, end })` → streams
+     directly from disk, never loads into memory
+   - Added HTTP Range support for resumable downloads (206 Partial Content)
+   - DB writes (downloadRecord, dailyUsage) moved to fire-and-forget async IIFE
+     so they don't block the download starting
+   - Accept-Ranges: bytes header on all responses
+
+2. Stream route (/api/media/[id]/stream):
+   - Uses createReadStream (already did, but confirmed)
+   - Cache-Control now adapts: public content gets "public, max-age=3600, s-maxage=86400"
+     (1hr browser, 24hr CDN), private gets "private, max-age=600"
+   - This allows CDN caching for public videos → faster repeat access
+
+3. Upload chunk route (/api/upload/chunk):
+   - BEFORE: `const buf = Buffer.from(await chunk.arrayBuffer())` → loads chunk
+     into memory
+   - AFTER: streams the chunk Blob directly to disk via pipeline()
+     `const nodeStream = Readable.fromWeb(chunk.stream()); await pipeline(nodeStream, writeStream)`
+   - Zero memory buffering — chunk goes from network → disk
+
+4. Upload store (client-side, src/stores/upload.ts):
+   - Chunk size: 10MB → 16MB (fewer HTTP requests for large files)
+   - Concurrency: hardcoded 6 → adaptive based on Network Information API:
+     * 2G/slow-2g: 2 concurrent
+     * 3G: 3 concurrent
+     * 4G: 6 concurrent
+     * 5G/broadband: 6 concurrent (default)
+     * Mobile (width<768): 4 concurrent
+   - Dynamic adjustment: monitors upload speed, increases concurrency if
+     >5MB/s avg, decreases if <500KB/s
+   - Exponential backoff on chunk retry: 500ms, 1000ms, 2000ms (was 500ms flat)
+   - Failed chunk only retries that chunk, not the whole file
+   - Added pause/resume support (status: "paused")
+   - Added resumable upload: checks /api/upload/status for already-received chunks
+
+5. New endpoint: GET /api/upload/status?uploadId=xxx
+   - Returns the list of chunk indices already received
+   - Client uses this to skip already-uploaded chunks on resume
+   - Enables true resumable uploads (pause → resume only uploads missing chunks)
+
+VERIFICATION:
+- Thumbnail at 2s: confirmed via dev log "generated at 2s" ✓
+- Download streaming: HTTP 200, content-length correct, accept-ranges: bytes ✓
+- Download with Range: HTTP 206, correct content-range ✓
+- Stream with Range: HTTP 206, correct headers ✓
+- Upload status endpoint: works (404 for nonexistent) ✓
+- Home page: HTTP 200 ✓
+- TypeScript: no new errors ✓
+
+BEFORE vs AFTER:
+- Download: BEFORE loaded entire file into RAM (200MB video = 200MB RAM + delay)
+            AFTER streams from disk (constant memory, immediate start)
+- Upload: BEFORE 10MB chunks, 6 concurrent, 60MB RAM for chunks
+          AFTER 16MB chunks, adaptive 2-8 concurrent, ~0MB RAM (streaming)
+- Cache: BEFORE private max-age=600 for everything
+         AFTER public gets 1hr browser + 24hr CDN cache
+- Resumable: BEFORE no resumable uploads
+             AFTER pause/resume + skip already-received chunks

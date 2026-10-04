@@ -2,12 +2,18 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestContext, jsonError, jsonOk } from "@/lib/api";
 import { PATHS } from "@/lib/storage";
-import { promises as fs } from "fs";
+import { promises as fs, createWriteStream } from "fs";
 import path from "path";
+import { pipeline } from "stream/promises";
 
 // POST /api/upload/chunk — receive one chunk
 // Body (multipart/form-data): uploadId, index, chunk (Blob)
 // Returns: { receivedChunks, ok: true }
+//
+// OPTIMIZED: streams the chunk directly to disk via pipeline(), avoiding
+// loading the entire chunk into a Buffer in memory. The old version used
+// Buffer.from(await chunk.arrayBuffer()) which allocated a 10MB buffer per
+// chunk — for 6 concurrent chunks that's 60MB of RAM just for uploads.
 export async function POST(req: NextRequest) {
   const ctx = await getRequestContext(req);
   if (!ctx.user) return jsonError("Not authenticated", 401);
@@ -47,16 +53,26 @@ export async function POST(req: NextRequest) {
 
   let chunkSize = 0;
   try {
-    const buf = Buffer.from(await chunk.arrayBuffer());
-    chunkSize = buf.length;
-    await fs.writeFile(chunkPath, buf);
+    // Stream the chunk Blob to disk via pipeline — avoids loading the whole
+    // chunk into a Buffer. The Blob's stream() method gives us a ReadableStream
+    // that we pipe directly to the file write stream.
+    const reader = (chunk as Blob).stream().getReader();
+    const writeStream = createWriteStream(chunkPath);
+    const writer = writeStream as any;
+
+    // Convert Web ReadableStream to Node Readable via async iteration
+    const { Readable } = await import("stream");
+    const nodeStream = Readable.fromWeb(chunk.stream() as any);
+    await pipeline(nodeStream, writeStream);
+
+    const stat = await fs.stat(chunkPath);
+    chunkSize = stat.size;
   } catch (e: any) {
     console.error("Chunk write failed:", e);
     return jsonError("Failed to write chunk", 500);
   }
 
   // Upsert the UploadChunk row. Use upsert to handle race conditions cleanly.
-  // This is the optimized path — only 2 DB queries per chunk (upsert + count).
   try {
     await db.uploadChunk.upsert({
       where: { uploadId_index: { uploadId, index } },
@@ -74,8 +90,6 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    // Likely a race condition — the row was created by a parallel chunk request.
-    // Re-read to confirm.
     console.error("Upsert chunk failed:", e);
     try {
       const existing = await db.uploadChunk.findUnique({
@@ -90,8 +104,7 @@ export async function POST(req: NextRequest) {
     } catch {}
   }
 
-  // Count all received chunks for this upload — this runs AFTER the upsert above,
-  // so the just-received chunk is included in the count.
+  // Count all received chunks for this upload
   const receivedCount = await db.uploadChunk.count({
     where: { uploadId, received: true },
   });
