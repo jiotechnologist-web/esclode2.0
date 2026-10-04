@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ import {
   Clock,
   RotateCw,
   Loader2,
-  RefreshCw,
+  ImagePlus,
 } from "lucide-react";
 import type { ApiMediaItem } from "@/lib/types";
 import { useUIStore } from "@/stores/ui";
@@ -122,39 +122,45 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
     }
   };
 
-  // Regenerate video thumbnail + extract duration/width/height (videos only).
-  // Fixes videos that have a missing thumbnail or "0:00" duration.
-  const handleRegenerateThumbnail = async (e?: React.MouseEvent) => {
+  // Manual thumbnail upload — opens a file picker, uploads an image,
+  // and sets it as the thumbnail for the media item.
+  // Works for any media type (video, photo, document).
+  const thumbnailInputRef = useRef<HTMLInputElement | null>(null);
+  const handleUploadThumbnail = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
     e?.preventDefault();
-    if (item.type !== "video") {
-      toast.error("Only videos can regenerate thumbnails");
+    // Trigger the hidden file input
+    thumbnailInputRef.current?.click();
+  };
+  const onThumbnailFileSelected = async (file: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file (JPEG, PNG, or WebP)");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image must be under 10MB");
       return;
     }
     setBusy(true);
     try {
-      const r = await fetch("/api/media/regenerate-thumbnails", {
+      const formData = new FormData();
+      formData.append("thumbnail", file);
+      const r = await fetch(`/api/media/${item.id}/upload-thumbnail`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mediaId: item.id }),
+        body: formData,
       });
       const d = await r.json();
       if (!r.ok) {
         throw new Error(d.error ?? "Failed");
       }
-      if (d.success > 0) {
-        toast.success("Thumbnail regenerated");
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("escloud-data-changed", { detail: { type: "thumbnail", mediaId: item.id } }));
-        }
-        onChange?.();
-      } else {
-        // Show the actual error from ffmpeg, not a generic "format not supported"
-        const errorMsg = d.error ?? d.errors?.[0]?.error ?? "Could not generate thumbnail — the video format may not be supported.";
-        toast.error(errorMsg);
+      toast.success("Thumbnail uploaded");
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("escloud-data-changed", { detail: { type: "thumbnail", mediaId: item.id } }));
       }
+      onChange?.();
     } catch (e: any) {
-      toast.error(e?.message ?? "Failed to regenerate thumbnail");
+      toast.error(e?.message ?? "Failed to upload thumbnail");
     } finally {
       setBusy(false);
     }
@@ -164,6 +170,7 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
 
   if (view === "list") {
     return (
+      <>
       <div
         className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-accent/40 cursor-pointer border border-transparent hover:border-border"
         onClick={open}
@@ -222,8 +229,8 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
                 {item.visibility === "private" ? "Make Public" : "Move to Private"}
               </DropdownMenuItem>
               {item.type === "video" && (
-                <DropdownMenuItem onClick={handleRegenerateThumbnail}>
-                  <RefreshCw className="w-3.5 h-3.5 mr-2" />Regenerate thumbnail
+                <DropdownMenuItem onClick={handleUploadThumbnail}>
+                  <ImagePlus className="w-3.5 h-3.5 mr-2" />Upload thumbnail
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
@@ -232,6 +239,20 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
           </DropdownMenu>
         </div>
       </div>
+      {/* Hidden file input for manual thumbnail upload (list view) */}
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        tabIndex={-1}
+        ref={thumbnailInputRef}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onThumbnailFileSelected(file);
+          e.target.value = "";
+        }}
+      />
+      </>
     );
   }
 
@@ -341,8 +362,8 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
               {item.visibility === "private" ? "Make Public" : "Move to Private"}
             </DropdownMenuItem>
             {item.type === "video" && (
-              <DropdownMenuItem onClick={handleRegenerateThumbnail}>
-                <RefreshCw className="w-3.5 h-3.5 mr-2" />Regenerate thumbnail
+              <DropdownMenuItem onClick={handleUploadThumbnail}>
+                <ImagePlus className="w-3.5 h-3.5 mr-2" />Upload thumbnail
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
@@ -351,6 +372,19 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
         </DropdownMenu>
       </div>
       </Card>
+      {/* Hidden file input for manual thumbnail upload */}
+      <input
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        tabIndex={-1}
+        ref={thumbnailInputRef}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onThumbnailFileSelected(file);
+          e.target.value = "";
+        }}
+      />
     </motion.div>
   );
 }

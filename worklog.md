@@ -792,3 +792,55 @@ Work Log:
 - Bulk download: uses <a download> elements instead of window.open() ✓
 - TypeScript check: no new errors ✓
 - Dev server log: no errors ✓
+
+---
+Task ID: master-v17
+Agent: Super Z (main)
+Task: Replace Regenerate thumbnail with Manual thumbnail upload
+
+Work Log:
+- Created new API endpoint: POST /api/media/[id]/upload-thumbnail
+  * Accepts multipart/form-data with a "thumbnail" field (image file)
+  * Validates: must be image (image/*), under 10MB
+  * Resizes the image to 480px wide (matching auto-generated thumbnails) using ffmpeg
+  * Falls back to sharp (if installed) or raw copy if ffmpeg can't process the format
+  * Saves as thumbnails/{mediaId}.jpg (same naming as auto-generated)
+  * Updates the Media record's thumbnailPath
+  * Returns { ok, thumbnailUrl: "/api/media/{id}/thumbnail?t={timestamp}" }
+  * Owner or admin only
+  * Works for any media type (video, photo, document)
+  * Works on both public and private content (uses canAccessMedia check)
+
+- Replaced "Regenerate thumbnail" with "Upload thumbnail" in media-card.tsx:
+  * Changed from calling /api/media/regenerate-thumbnails to using a hidden
+    file input + uploading to /api/media/[id]/upload-thumbnail
+  * Added a hidden <input type="file" accept="image/jpeg,image/png,image/webp">
+    element in both list view and grid view
+  * When user clicks "Upload thumbnail" in the dropdown, it triggers the
+    hidden file input's click(), opening the file picker
+  * When a file is selected, it uploads via FormData to the API
+  * On success: shows toast "Thumbnail uploaded" + broadcasts refresh event
+  * On error: shows the actual error message
+  * Replaced RefreshCw icon with ImagePlus icon (image upload icon)
+  * Works in both grid view and list view dropdowns
+  * Works on both Videos page and Private page (since it's in the shared
+    media-card component used by both)
+
+- Verified end-to-end:
+  * Created a test JPEG image (480x270, blue)
+  * Uploaded it as a thumbnail for an existing video via the API
+  * Result: {"ok":true,"thumbnailUrl":"/api/media/.../thumbnail?t=..."}
+  * Thumbnail file saved to disk: 989 bytes JPEG, 480x270 ✓
+  * Thumbnail endpoint serves the new image: HTTP 200, image/jpeg ✓
+  * API response shows new thumbnailUrl with cache-busting timestamp ✓
+  * Duration preserved: 9.5s ✓
+  * Home page loads HTTP 200 ✓
+  * TypeScript check: no errors on media-card ✓
+
+Stage Summary:
+- "Regenerate thumbnail" replaced with "Upload thumbnail" — users can now
+  manually upload any image (JPEG/PNG/WebP) as the video thumbnail
+- The uploaded image is automatically resized to 480px wide to match the
+  auto-generated thumbnail format
+- Works for videos on both the Videos page and the Private page
+- The uploaded thumbnail properly adjusts to the video card's thumbnail size
