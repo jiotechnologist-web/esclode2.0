@@ -15,15 +15,13 @@ export interface VideoMetadata {
 
 /**
  * Probe video metadata (duration, width, height) using ffprobe.
- * Tries multiple approaches to be robust against various video formats
- * (phone-recorded HEVC, fragmented MP4, streams without explicit duration, etc.).
+ * Tries multiple approaches to be robust against various video formats.
  */
 async function probeVideoMetadata(videoAbs: string): Promise<VideoMetadata> {
   let duration: number | null = null;
   let width: number | null = null;
   let height: number | null = null;
 
-  // Approach 1: stream-level metadata (most accurate for standard MP4/MOV)
   try {
     const { stdout } = await execAsync(
       `ffprobe -v error -select_streams v:0 -show_entries stream=width,height,duration -of csv=p=0 "${videoAbs}"`,
@@ -35,11 +33,8 @@ async function probeVideoMetadata(videoAbs: string): Promise<VideoMetadata> {
       height = parseInt(parts[1], 10) || null;
       duration = parseFloat(parts[2]) || null;
     }
-  } catch {
-    // fall through to next approach
-  }
+  } catch {}
 
-  // Approach 2: format-level duration (works for fragmented MP4 / streams without stream duration)
   if (duration === null) {
     try {
       const { stdout } = await execAsync(
@@ -48,12 +43,9 @@ async function probeVideoMetadata(videoAbs: string): Promise<VideoMetadata> {
       );
       const d = parseFloat(stdout.trim());
       if (!isNaN(d) && d > 0) duration = d;
-    } catch {
-      // fall through
-    }
+    } catch {}
   }
 
-  // Approach 3: get width/height from format if stream probe failed
   if (width === null || height === null) {
     try {
       const { stdout } = await execAsync(
@@ -65,18 +57,18 @@ async function probeVideoMetadata(videoAbs: string): Promise<VideoMetadata> {
         if (width === null) width = parseInt(parts[0], 10) || null;
         if (height === null) height = parseInt(parts[1], 10) || null;
       }
-    } catch {
-      // give up
-    }
+    } catch {}
   }
 
   return { duration, width, height };
 }
 
 /**
- * Try to generate a thumbnail at a specific timestamp using fast seek
- * (`-ss` BEFORE `-i` for fast seek to nearest keyframe).
- * Returns true on success, false on failure.
+ * Try to generate a thumbnail at a specific timestamp.
+ * Uses fast seek (-ss before -i) for speed + reliability.
+ * IMPORTANT: -update 1 is required by ffmpeg 7.x to write a single frame
+ * to a non-sequence filename (without it, ffmpeg treats the output as an
+ * image sequence and may fail to write the file).
  */
 async function tryGenerateAt(
   videoAbs: string,
@@ -85,15 +77,14 @@ async function tryGenerateAt(
 ): Promise<boolean> {
   const ts = formatTimecode(seekSeconds);
   try {
-    // Fast seek: -ss before -i jumps to nearest keyframe (fast, works for most formats).
-    // -frames:v 1 = extract exactly one frame.
-    // -vf scale=480:-2 = scale to 480px wide, preserve aspect ratio (must be even).
-    // -q:v 4 = high quality JPEG (2-31, lower is better).
+    // -update 1 = allow writing to a single non-sequence filename
+    // -frames:v 1 = extract exactly one frame
+    // scale=480:-2 = 480px wide, preserve aspect ratio (must be even)
+    // -q:v 4 = high quality JPEG
     await execAsync(
-      `ffmpeg -y -ss ${ts} -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 "${thumbAbs}"`,
+      `ffmpeg -y -ss ${ts} -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 -update 1 "${thumbAbs}"`,
       { timeout: 30000 }
     );
-    // Verify the file was created and is non-empty
     const stat = await fs.stat(thumbAbs).catch(() => null);
     if (stat && stat.size > 0) return true;
     return false;
@@ -104,18 +95,8 @@ async function tryGenerateAt(
 
 /**
  * Generate a thumbnail from a video.
- *
- * PRIMARY: seek to exactly 2 seconds and capture that frame as the thumbnail.
- * This is what the user explicitly requested — "video start 2s & capture this".
- *
- * FALLBACKS (only if 2s fails — e.g. video shorter than 2s, or no keyframe near 2s):
- *   - 1s
- *   - 0.5s
- *   - 0.1s
- *   - 0 (first frame)
- *   - decode from start without seeking
- *
- * Returns the relative storage path of the thumbnail (empty string on total failure).
+ * PRIMARY: seek to exactly 2 seconds and capture that frame (user's request).
+ * Fallbacks only if 2s fails.
  */
 export async function generateVideoThumbnail(
   videoAbs: string,
@@ -125,35 +106,24 @@ export async function generateVideoThumbnail(
   const thumbAbs = path.join(PATHS.THUMBNAILS, thumbName);
   await fs.mkdir(PATHS.THUMBNAILS, { recursive: true });
 
-  // Probe metadata first so we know the duration (for fallback timestamp selection)
   const meta = await probeVideoMetadata(videoAbs);
   const duration = meta.duration;
 
-  // Build the list of timestamps to try.
-  // PRIMARY: 2 seconds (user's explicit request).
-  // If the video is shorter than 2s, we still try 2s first (ffmpeg will clamp or
-  // return the last frame), but the fallbacks ensure we get something.
+  // PRIMARY: 2 seconds. Fallbacks: 1s, 0.5s, 0.1s, 0, then no-seek.
   const seekAttempts: number[] = [2];
   if (duration && duration > 0) {
-    // Add smart fallbacks based on actual duration
     if (duration > 2) {
-      // Video is longer than 2s — 2s should work. Fallbacks: 1s, 0.5s, 0.1s, 0
       seekAttempts.push(1, 0.5, 0.1, 0);
     } else if (duration > 1) {
-      // Video is 1-2s — 2s might overshoot. Fallbacks: 1s, 0.5s, 0.1s, 0
       seekAttempts.push(1, 0.5, 0.1, 0);
     } else if (duration > 0.5) {
-      // Very short video. Fallbacks: 0.5s, 0.1s, 0
       seekAttempts.push(0.5, 0.1, 0);
     } else {
-      // Tiny video. Fallbacks: 0.1s, 0
       seekAttempts.push(0.1, 0);
     }
   } else {
-    // Unknown duration — try 2s first (per user request), then smaller values
     seekAttempts.push(1, 0.5, 0.1, 0);
   }
-  // De-duplicate while preserving order
   const seen = new Set<number>();
   const uniqueAttempts = seekAttempts.filter((s) => {
     const rounded = Math.round(s * 1000) / 1000;
@@ -165,7 +135,6 @@ export async function generateVideoThumbnail(
   let thumbnailSuccess = false;
   let usedSeek = 0;
   for (const seek of uniqueAttempts) {
-    // Clear any previous attempt's file
     try { await fs.unlink(thumbAbs); } catch {}
     if (await tryGenerateAt(videoAbs, thumbAbs, seek)) {
       thumbnailSuccess = true;
@@ -174,12 +143,12 @@ export async function generateVideoThumbnail(
     }
   }
 
-  // Last-resort: try without seeking at all (decode from start)
+  // Last resort: no seek, decode from start
   if (!thumbnailSuccess) {
     try { await fs.unlink(thumbAbs); } catch {}
     try {
       await execAsync(
-        `ffmpeg -y -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 "${thumbAbs}"`,
+        `ffmpeg -y -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 -update 1 "${thumbAbs}"`,
         { timeout: 30000 }
       );
       const stat = await fs.stat(thumbAbs).catch(() => null);
@@ -192,10 +161,10 @@ export async function generateVideoThumbnail(
     }
   }
 
-  if (thumbnailSuccess && usedSeek !== 2) {
-    console.log(`[video-thumb] Thumbnail for ${mediaId} generated at ${usedSeek}s (2s fallback)`);
-  } else if (thumbnailSuccess) {
-    console.log(`[video-thumb] Thumbnail for ${mediaId} generated at 2s`);
+  if (thumbnailSuccess) {
+    console.log(`[video-thumb] Thumbnail for ${mediaId} generated at ${usedSeek}s`);
+  } else {
+    console.error(`[video-thumb] FAILED to generate thumbnail for ${mediaId}`);
   }
 
   const thumbnailRel = thumbnailSuccess ? getStorageRelativePath(thumbAbs) : "";
@@ -207,9 +176,6 @@ export async function generateVideoThumbnail(
   };
 }
 
-/**
- * Generate a specific thumbnail at a custom timestamp (for admin manual selection).
- */
 export async function generateVideoThumbnailAtTime(
   videoAbs: string,
   mediaId: string,
@@ -220,7 +186,7 @@ export async function generateVideoThumbnailAtTime(
   await fs.mkdir(PATHS.THUMBNAILS, { recursive: true });
   const ts = formatTimecode(timeSeconds);
   await execAsync(
-    `ffmpeg -y -ss ${ts} -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 "${thumbAbs}"`,
+    `ffmpeg -y -ss ${ts} -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 -update 1 "${thumbAbs}"`,
     { timeout: 30000 }
   );
   return getStorageRelativePath(thumbAbs);

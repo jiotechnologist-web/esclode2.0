@@ -613,3 +613,44 @@ BEFORE vs AFTER:
          AFTER public gets 1hr browser + 24hr CDN cache
 - Resumable: BEFORE no resumable uploads
              AFTER pause/resume + skip already-received chunks
+
+---
+Task ID: master-v14
+Agent: Super Z (main)
+Task: Fix thumbnail ffmpeg -update 1 bug that caused "Could not generate thumbnail" error
+
+Work Log:
+- User reported: "when i try to regenerate thumbnail error Could not generate
+  thumbnail — the video format may not be supported" and the thumbnail still
+  not showing.
+- ROOT CAUSE FOUND: The new ffmpeg 7.1.5 requires the `-update 1` flag when
+  writing a single frame to a non-sequence filename. Without it, ffmpeg
+  outputs the warning:
+    "The specified filename 'xxx.jpg' does not contain an image sequence
+     pattern or a pattern is invalid. Use a pattern such as %03d for an image
+     sequence or use the -update option (with -frames:v 1 if needed) to write
+     a single image."
+  In some cases this causes the thumbnail file to not be written properly,
+  resulting in an empty or missing thumbnail → "Could not generate thumbnail"
+  error in the UI.
+- FIX: Added `-update 1` to ALL ffmpeg commands in src/lib/video-thumb.ts:
+  * tryGenerateAt(): `ffmpeg -y -ss ${ts} -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 -update 1 "${thumbAbs}"`
+  * Last-resort no-seek: same fix
+  * generateVideoThumbnailAtTime(): same fix
+- Verified end-to-end:
+  * Upload a real video → thumbnail generated at 2s (dev log confirms) ✓
+  * Thumbnail file: 15KB JPEG, 480x914 ✓
+  * Regenerate endpoint: success:1, failed:0 ✓
+  * Regenerated ALL 4 existing videos: all succeeded ✓
+  * Home page loads HTTP 200 ✓
+- Also confirmed: the thumbnail generation code correctly tries 2s first
+  (per user's explicit request), then falls back to 1s, 0.5s, 0.1s, 0, then
+  no-seek. All with -update 1 now.
+
+Stage Summary:
+- The "Could not generate thumbnail" error is FIXED — root cause was missing
+  `-update 1` flag required by ffmpeg 7.x when writing a single frame
+- Thumbnails are now generated at 2 seconds as the user requested
+- All existing videos have been regenerated with the fix
+- The user should HARD-REFRESH their browser (Ctrl+Shift+R) to see the
+  corrected thumbnails
