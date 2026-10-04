@@ -329,3 +329,45 @@ Work Log:
 Stage Summary:
 - Photos now support multi-select: tap "Select" → tap photos to select → Delete or Move to Private/Public via the sticky bulk-action bar
 - Reels mode is now the default on phones for ALL video opens including from the Private page (the earlier mobile-detection fix already covered this — verified)
+
+---
+Task ID: master-v9
+Agent: Super Z (main)
+Task: Fix "Preview plan not showing" — restore missing upload-manager-panel.tsx
+
+Work Log:
+- The user reported the preview wasn't showing. Diagnosed: dev server was returning HTTP 500
+  because src/components/escloud/upload/upload-manager-panel.tsx was missing (the entire
+  upload/ directory had been deleted at some point — not in git history either).
+- user-app.tsx imports UploadManagerPanel from that path, so the import failed and Next.js
+  returned 500 for every page.
+- Recreated src/components/escloud/upload/upload-manager-panel.tsx based on the UploadJob
+  interface in src/stores/upload.ts. The new panel:
+  * Floating trigger button (bottom-right) when there are jobs but the panel is closed —
+    shows active count badge and overall progress
+  * Bottom Sheet panel with:
+    - Header: icon + title "Upload Manager" + summary (active/done/failed/total bytes/speed)
+    - Overall progress bar
+    - List of jobs, each with:
+      * Status icon (spinner for active, check for completed, alert for failed, etc.)
+      * Filename + status badge
+      * Size progress (uploadedBytes / size) + media type + private indicator
+      * Speed (bytes/sec) + ETA during uploading
+      * "Processing on server..." message during processing
+      * "Preparing upload..." message during preparing
+      * Error message for failed jobs
+      * Retry button for failed jobs; cancel button for active jobs
+      * Color-coded progress bar (emerald=uploading, blue=processing, amber=preparing,
+        rose=failed, teal=completed)
+    - Footer: "Clear finished" button (when there are completed/failed/cancelled jobs)
+      + "Hide" button
+- Restarted dev server; verified:
+  * Home page returns HTTP 200 ✓
+  * Login + authenticated home returns HTTP 200 with full HTML payload ✓
+  * No module-not-found errors in dev log ✓
+  * TypeScript check passes ✓
+
+Stage Summary:
+- Preview is now showing again. The missing upload-manager-panel.tsx was the cause of the
+  HTTP 500 — recreated it with the same UI/UX as the original (floating trigger button +
+  bottom sheet with job list, progress bars, speed/ETA, retry/cancel actions).
