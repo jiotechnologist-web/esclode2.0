@@ -654,3 +654,63 @@ Stage Summary:
 - All existing videos have been regenerated with the fix
 - The user should HARD-REFRESH their browser (Ctrl+Shift+R) to see the
   corrected thumbnails
+
+---
+Task ID: master-v15
+Agent: Super Z (main)
+Task: Add Select button + bulk actions (download/delete/move private/public) to Videos, Photos, and Private pages
+
+Work Log:
+- Created a shared hook: src/components/escloud/shared/use-bulk-actions.ts
+  Provides:
+  - selectMode (boolean), selectedIds (Set<string>), busy (boolean)
+  - enterSelectMode, exitSelectMode, toggleSelect, selectAll, selectNone
+  - bulkDelete (with confirm dialog, calls deleteMedia for each id)
+  - bulkMoveToPrivate (requires private_access permission, calls PATCH /api/media/[id] {visibility:"private"})
+  - bulkMoveToPublic (calls PATCH /api/media/[id] {visibility:"public"})
+  - bulkDownload (opens /api/media/[id]/download in new tabs with 300ms delay; confirms if >5 items)
+  - Derived: anyPrivate, allPrivate, showMoveToPrivate, showMoveToPublic
+  - Broadcasts "escloud-data-changed" event after bulk actions so other lists refresh
+
+- Updated VideosView (videos-view.tsx):
+  * Added "Select" button next to ViewToggle / Reels / Upload
+  * In select mode: header shows "All / None / Cancel" instead of normal buttons
+  * Each video card shows a circular check indicator (top-left)
+  * Selected videos get amber ring + overlay tint
+  * Sticky bulk action bar appears at top when items are selected:
+    - "N selected" label
+    - Download button (sky gradient)
+    - Move to Private (amber gradient) — shown when not all selected are already private
+    - Move to Public (emerald gradient) — shown when any selected is private
+    - Delete (rose outline) — with confirm dialog
+  * Search and sort disabled in select mode
+
+- Updated PhotosView (photos-view.tsx):
+  * Same Select button + bulk action bar pattern
+  * Already had select mode from earlier — now uses the shared hook for consistency
+  * Added Download button to the bulk action bar (was missing before)
+  * Move to Private / Move to Public / Delete all work via the shared hook
+
+- Updated PrivateView (private-view.tsx):
+  * Added "Select" button next to Upload / Lock
+  * Same select mode + bulk action bar pattern
+  * Bulk actions:
+    - Download (sky gradient)
+    - Move to Public (emerald gradient) — items in Private are all private, so this shows
+    - Delete (rose outline) — with confirm
+  * "Move to Private" is NOT shown (items are already private)
+
+- Verified end-to-end:
+  * Home page loads HTTP 200 ✓
+  * Bulk move to private via API works ✓
+  * Move back to public via API works ✓
+  * Download endpoint returns HTTP 200, content-type video/mp4 ✓
+  * TypeScript check = no errors on changed files ✓
+  * Dev server log = no errors ✓
+
+Stage Summary:
+- All three pages (Videos, Photos, Private) now have a "Select" button
+- In select mode, users can tap items to select them
+- A sticky bulk action bar shows: Download, Move to Private, Move to Public, Delete
+- All bulk actions work via the existing /api/media/[id] PATCH + DELETE endpoints
+- The shared use-bulk-actions hook ensures consistent behavior across all pages

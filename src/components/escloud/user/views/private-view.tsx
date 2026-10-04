@@ -2,17 +2,22 @@
 import { useState, useEffect } from "react";
 import { useMediaList } from "../../shared/use-media-list";
 import { MediaGrid, MediaSkeleton, EmptyState } from "../../shared/media-card";
+import { useBulkActions } from "../../shared/use-bulk-actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Lock, Search, Shield, Loader2, Eye, EyeOff, Upload } from "lucide-react";
-import { motion } from "framer-motion";
+import {
+  Lock, Search, Shield, Loader2, Eye, EyeOff, Upload,
+  CheckSquare, Square, X, Trash2, Globe, Download, Check,
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useAuthStore } from "@/stores/auth";
 import { useUploadStore } from "@/stores/upload";
 import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { UploadButton } from "../../shared/upload-button";
+import { cn } from "@/lib/utils";
 
 export function PrivateView() {
   const user = useAuthStore((s) => s.user);
@@ -32,14 +37,12 @@ export function PrivateView() {
     hasPermission(user.permissions, PERMISSIONS.UPLOAD_CONTACTS)
   );
 
-  // Check if user has a private password set
   useEffect(() => {
     (async () => {
       try {
         const r = await fetch("/api/user/private-password");
         const d = await r.json();
         setHasPassword(d.hasPassword);
-        // If no password set, allow direct access
         if (!d.hasPassword) setUnlocked(true);
       } catch {
         setHasPassword(false);
@@ -72,12 +75,13 @@ export function PrivateView() {
     }
   };
 
-  // Only load media when unlocked
   const { items, loading, refresh } = useMediaList({
     visibility: "private",
     search: search || undefined,
     pageSize: 24,
   });
+
+  const bulk = useBulkActions(items, refresh);
 
   // Password gate screen
   if (!unlocked && hasPassword) {
@@ -152,24 +156,49 @@ export function PrivateView() {
         </div>
         <div className="flex-1">
           <h1 className="text-xl font-bold">Private</h1>
-          <p className="text-xs text-muted-foreground">{items.length} private files</p>
+          <p className="text-xs text-muted-foreground">
+            {bulk.selectMode ? `${bulk.selectedIds.size} of ${items.length} selected` : `${items.length} private files`}
+          </p>
         </div>
-        {hasPrivateAccess && canUpload && (
-          <UploadButton
-            label="Upload"
-            size="sm"
-            className="bg-gradient-to-r from-amber-500 to-orange-500 text-white"
-            onFiles={async (files) => {
-              await addFiles(files, { visibility: "private" });
-              toast.success(`Uploading ${files.length} private file(s)`);
-            }}
-          />
-        )}
-        {hasPassword && (
-          <Button variant="ghost" size="sm" onClick={() => { setUnlocked(false); setPwdInput(""); }}>
-            <Lock className="w-3.5 h-3.5 mr-1" /> Lock
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {bulk.selectMode ? (
+            <>
+              <Button size="sm" variant="outline" onClick={bulk.selectAll} disabled={bulk.busy}>
+                <CheckSquare className="w-4 h-4 mr-1.5" /> All
+              </Button>
+              <Button size="sm" variant="outline" onClick={bulk.selectNone} disabled={bulk.busy}>
+                <Square className="w-4 h-4 mr-1.5" /> None
+              </Button>
+              <Button size="sm" variant="outline" onClick={bulk.exitSelectMode} disabled={bulk.busy}>
+                <X className="w-4 h-4 mr-1.5" /> Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              {items.length > 0 && (
+                <Button size="sm" variant="outline" onClick={bulk.enterSelectMode} className="btn-press" title="Select items to delete, move to public, or download">
+                  <CheckSquare className="w-4 h-4 mr-1.5" /> Select
+                </Button>
+              )}
+              {hasPrivateAccess && canUpload && (
+                <UploadButton
+                  label="Upload"
+                  size="sm"
+                  className="bg-gradient-to-r from-amber-500 to-orange-500 text-white"
+                  onFiles={async (files) => {
+                    await addFiles(files, { visibility: "private" });
+                    toast.success(`Uploading ${files.length} private file(s)`);
+                  }}
+                />
+              )}
+              {hasPassword && (
+                <Button variant="ghost" size="sm" onClick={() => { setUnlocked(false); setPwdInput(""); }}>
+                  <Lock className="w-3.5 h-3.5 mr-1" /> Lock
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </motion.div>
 
       <Card className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30 shadow-premium">
@@ -195,13 +224,69 @@ export function PrivateView() {
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search private files…" className="pl-9 h-10 border-border/60" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search private files…" className="pl-9 h-10 border-border/60" disabled={bulk.selectMode} />
       </div>
+
+      {/* Bulk action bar */}
+      <AnimatePresence>
+        {bulk.selectMode && bulk.selectedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="sticky top-16 z-30 flex items-center gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 shadow-md backdrop-blur flex-wrap"
+          >
+            <div className="text-sm font-medium text-amber-700 dark:text-amber-300 mr-auto">
+              {bulk.selectedIds.size} selected
+            </div>
+            <Button size="sm" onClick={bulk.bulkDownload} disabled={bulk.busy} className="bg-gradient-to-r from-sky-500 to-blue-500 text-white border-0 hover:opacity-95 btn-press">
+              <Download className="w-4 h-4 mr-1.5" /> {bulk.busy ? "…" : "Download"}
+            </Button>
+            {/* In Private view, items are already private — show "Move to Public" if any are private (which they all are) */}
+            {bulk.showMoveToPublic && (
+              <Button size="sm" onClick={bulk.bulkMoveToPublic} disabled={bulk.busy} className="bg-gradient-to-r from-emerald-500 to-cyan-500 text-white border-0 hover:opacity-95 btn-press">
+                <Globe className="w-4 h-4 mr-1.5" /> {bulk.busy ? "Moving…" : "Move to Public"}
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={bulk.bulkDelete} disabled={bulk.busy} className="text-rose-600 hover:text-rose-700 border-rose-300 hover:border-rose-400 btn-press">
+              <Trash2 className="w-4 h-4 mr-1.5" /> {bulk.busy ? "Deleting…" : "Delete"}
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <MediaSkeleton />
       ) : items.length === 0 ? (
         <EmptyState icon={Shield} title="No private content" description="When your administrator assigns private content to you, it will appear here." />
+      ) : bulk.selectMode ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          {items.map((m) => {
+            const isSelected = bulk.selectedIds.has(m.id);
+            return (
+              <div
+                key={m.id}
+                onClick={() => bulk.toggleSelect(m.id)}
+                className={cn(
+                  "relative rounded-xl overflow-hidden cursor-pointer transition-all",
+                  "aspect-video bg-muted",
+                  isSelected && "ring-4 ring-amber-500 ring-offset-2 ring-offset-background"
+                )}
+              >
+                {m.thumbnailUrl && (
+                  <img src={m.thumbnailUrl} alt={m.name} className="w-full h-full object-cover" loading="lazy" />
+                )}
+                <div className={cn(
+                  "absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center transition-all",
+                  isSelected ? "bg-amber-500 text-white" : "bg-black/50 text-white backdrop-blur scale-90 hover:scale-100"
+                )}>
+                  {isSelected ? <Check className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                </div>
+                {isSelected && <div className="absolute inset-0 bg-amber-500/20 pointer-events-none" />}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <MediaGrid items={items} onChange={refresh} />
       )}
