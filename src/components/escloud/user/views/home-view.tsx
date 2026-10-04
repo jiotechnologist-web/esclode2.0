@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Upload, Video, Image as ImageIcon, FileText, Users, Lock,
   Settings as SettingsIcon, ChevronRight, HardDrive, StickyNote, Heart,
-  Clock, Shield, Sparkles,
+  Clock, Shield, Sparkles, QrCode,
 } from "lucide-react";
 import type { ApiMediaItem } from "@/lib/types";
 import { MediaGrid } from "../../shared/media-card";
@@ -19,6 +19,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/permissions";
 import { toast } from "sonner";
 import { motion } from "framer-motion";
 import { UploadButton } from "../../shared/upload-button";
+import { QRScanner } from "../../qr/qr-scanner";
 
 export function HomeView() {
   const user = useAuthStore((s) => s.user)!;
@@ -30,6 +31,9 @@ export function HomeView() {
   const [recentVideos, setRecentVideos] = useState<ApiMediaItem[]>([]);
   const [recentPhotos, setRecentPhotos] = useState<ApiMediaItem[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [showQrScanner, setShowQrScanner] = useState(false);
+
+  const hasQrScanPermission = hasPermission(user.permissions, PERMISSIONS.QR_SCAN);
 
   useEffect(() => {
     refreshSession();
@@ -106,9 +110,23 @@ export function HomeView() {
               )}
             </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setView("settings")} className="text-white hover:bg-white/10 shrink-0">
-            <SettingsIcon className="w-5 h-5" />
-          </Button>
+          <div className="flex items-center gap-1 shrink-0">
+            {/* QR Code Scanner — icon button (no text) */}
+            {hasQrScanPermission && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowQrScanner(true)}
+                className="text-white hover:bg-white/10"
+                title="Scan QR code to login on PC"
+              >
+                <QrCode className="w-5 h-5" />
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => setView("settings")} className="text-white hover:bg-white/10">
+              <SettingsIcon className="w-5 h-5" />
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -303,6 +321,17 @@ export function HomeView() {
           </Card>
         )}
       </div>
+
+      {/* QR Code Scanner overlay — opened by the QR icon button in the profile banner */}
+      {showQrScanner && (
+        <QRScanner
+          onClose={() => setShowQrScanner(false)}
+          onScanned={() => {
+            setShowQrScanner(false);
+            toast.success("QR scanned — authorizing PC login…");
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -371,3 +371,57 @@ Stage Summary:
 - Preview is now showing again. The missing upload-manager-panel.tsx was the cause of the
   HTTP 500 — recreated it with the same UI/UX as the original (floating trigger button +
   bottom sheet with job list, progress bars, speed/ETA, retry/cancel actions).
+
+---
+Task ID: master-v10
+Agent: Super Z (main)
+Task: Fix upload init failure + add QR scanner icon to home page
+
+Work Log:
+- Analyzed user's screenshot via VLM: upload was failing with "Failed to initialize upload.
+  Please check your connection..." for a 3.5MB video file.
+- Root cause: the entire src/app/api/upload/ directory was missing (init/chunk/complete/cancel
+  routes all gone). The upload store calls /api/upload/init which returned 404, causing the
+  init promise to reject with that error message.
+- Recreated all 4 upload API routes from scratch based on the UploadJob interface in
+  src/stores/upload.ts and the Upload/UploadChunk/Media Prisma models:
+  1. POST /api/upload/init — validates filename/size/mimeType/visibility, checks upload
+     permissions (UPLOAD_VIDEOS / UPLOAD_PHOTOS / UPLOAD_DOCUMENTS / UPLOAD_CONTACTS),
+     checks private_access permission for private uploads, checks storage quota and
+     max upload size, pre-allocates a storage path, creates an Upload row, returns
+     { uploadId, chunkSize: 10MB, totalChunks }
+  2. POST /api/upload/chunk — receives multipart/form-data with uploadId, index, chunk (Blob),
+     writes the chunk to UPLOADS/incoming/<uploadId>-<index>, upserts an UploadChunk row
+     (received=true, size, receivedAt), counts received chunks, updates the Upload row's
+     receivedChunks + status (uploading/completed)
+     - Bug fix: initial version referenced `buf` outside its try-block scope → fixed by
+       extracting `chunkSize` to an outer `let` before the upsert
+  3. POST /api/upload/complete — concatenates chunks in order into the final storage path,
+     verifies size, cleans up chunk files, categorizes the file (video/photo/document/contact),
+     creates a Media record with ownerId=upload.userId, generates a thumbnail (ffmpeg for
+     videos; uses the photo itself for photos), grants PrivateAccess to the owner (and any
+     assignUserIds) for private uploads, marks the Upload as completed
+  4. POST /api/upload/cancel — marks the Upload as cancelled and deletes any received chunk
+     files from UPLOADS/incoming/
+- Verified end-to-end with curl:
+  * init returns uploadId ✓
+  * chunk returns receivedChunks:1 ✓
+  * complete creates a mediaId + Media row ✓
+  * media shows up in /api/media?type=video ✓
+  * delete via /api/media/[id] works ✓
+  * Cleaned up test uploads from DB
+- Added QR code scanner icon button to the home page profile banner:
+  * Imported QrCode icon from lucide-react (clean QR-code-specific icon, not text)
+  * Imported QRScanner from ../../qr/qr-scanner
+  * Added `showQrScanner` state and `hasQrScanPermission` check
+  * Added a ghost icon button (QrCode icon, w-5 h-5, white color, hover:bg-white/10)
+    in the profile banner next to the Settings icon — only shown if user has qr_scan
+    permission
+  * Added `title="Scan QR code to login on PC"` for accessibility
+  * Mounted the QRScanner overlay at the end of HomeView, toggled by showQrScanner
+  * On successful scan: closes the scanner + shows a success toast
+
+Stage Summary:
+- Upload works again — all 4 API routes recreated (init/chunk/complete/cancel)
+- QR scanner icon button added to home page profile banner (next to settings icon),
+  uses the lucide QrCode icon (no text), only visible if user has qr_scan permission
