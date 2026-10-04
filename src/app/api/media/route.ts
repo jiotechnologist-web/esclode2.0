@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRequestContext, jsonError, jsonOk } from "@/lib/api";
 import { hasPermission } from "@/lib/permissions";
@@ -153,7 +153,17 @@ export async function GET(req: NextRequest) {
       items = rows.map((r) => mapMediaWithUser(r, ctx.user!.id, favIds.has(r.id), watchMap.get(r.id) ?? null));
     }
 
-    return jsonOk({ items, page, pageSize, total });
+    // Add no-cache headers so the browser always fetches fresh data
+    // (prevents stale "0:00 duration" / missing thumbnail issues after uploads)
+    const response = NextResponse.json({ items, page, pageSize, total }, {
+      status: 200,
+      headers: {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+      },
+    });
+    return response;
   } catch (e: any) {
     console.error("Failed to fetch media:", e);
     return jsonError("Something went wrong. Please try again.", 500);
@@ -180,7 +190,7 @@ function mapMediaWithUser(
     approvalStatus: m.approvalStatus,
     ownerId: m.ownerId,
     ownerName: m.owner?.displayName ?? m.owner?.username ?? null,
-    thumbnailUrl: m.thumbnailPath ? `/api/media/${m.id}/thumbnail` : null,
+    thumbnailUrl: m.thumbnailPath ? `/api/media/${m.id}/thumbnail?t=${new Date(m.updatedAt).getTime()}` : null,
     streamUrl: m.type === "video" || m.type === "photo" ? `/api/media/${m.id}/stream` : null,
     downloadUrl: `/api/media/${m.id}/download`,
     duration: m.duration,
