@@ -191,7 +191,10 @@ export function UserShell({ navItems, children }: Props) {
 
           {/* User footer */}
           <div className="p-2 border-t border-border/60 space-y-1">
-            <div className="flex items-center gap-2 px-2 py-2 rounded-xl bg-sidebar-accent/40">
+            <div className={cn(
+              "flex items-center gap-2 rounded-xl bg-sidebar-accent/40",
+              sidebarCollapsed ? "justify-center py-2" : "px-2 py-2"
+            )}>
               <Avatar className="w-8 h-8 shrink-0">
                 <AvatarFallback className="bg-brand-gradient text-white text-xs">
                   {user.displayName?.[0]?.toUpperCase() ?? user.username[0]?.toUpperCase()}
@@ -211,20 +214,23 @@ export function UserShell({ navItems, children }: Props) {
                 )}
               </AnimatePresence>
             </div>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="sm" className="flex-1 h-8" onClick={() => setTheme("light")} title="Light">
+            <div className={cn(
+              "flex items-center gap-1",
+              sidebarCollapsed && "flex-col"
+            )}>
+              <Button variant="ghost" size="sm" className={cn("h-8", sidebarCollapsed ? "w-full" : "flex-1")} onClick={() => setTheme("light")} title="Light">
                 <Sun className={cn("w-3.5 h-3.5", theme === "light" && "text-primary")} />
               </Button>
-              <Button variant="ghost" size="sm" className="flex-1 h-8" onClick={() => setTheme("dark")} title="Dark">
+              <Button variant="ghost" size="sm" className={cn("h-8", sidebarCollapsed ? "w-full" : "flex-1")} onClick={() => setTheme("dark")} title="Dark">
                 <Moon className={cn("w-3.5 h-3.5", theme === "dark" && "text-primary")} />
               </Button>
-              <Button variant="ghost" size="sm" className="flex-1 h-8" onClick={() => setTheme("system")} title="System">
+              <Button variant="ghost" size="sm" className={cn("h-8", sidebarCollapsed ? "w-full" : "flex-1")} onClick={() => setTheme("system")} title="System">
                 <Monitor className={cn("w-3.5 h-3.5", theme === "system" && "text-primary")} />
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="flex-1 h-8"
+                className={cn("h-8", sidebarCollapsed ? "w-full" : "flex-1")}
                 onClick={async () => {
                   await logout();
                   toast.success("Signed out");

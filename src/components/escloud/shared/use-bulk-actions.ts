@@ -159,16 +159,27 @@ export function useBulkActions(items: { id: string; visibility: string; type: st
       return;
     }
     const ids = Array.from(selectedIds);
-    // Open each download URL in a new tab with a small delay so the browser
-    // doesn't block them as popups. For more than 5 items, ask for confirmation.
+    // Confirm for more than 5 files
     if (ids.length > 5) {
-      if (!confirm(`Download ${ids.length} files? This will open ${ids.length} tabs.`)) return;
+      if (!confirm(`Download ${ids.length} files?`)) return;
     }
+    // Use hidden anchor elements with download attribute for each file.
+    // Browsers block window.open() for multiple popups, so we use
+    // programmatically-created <a> elements with click() instead.
+    // Each download is spaced 500ms apart to avoid the browser blocking
+    // them as spam.
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i];
       setTimeout(() => {
-        window.open(`/api/media/${id}/download`, "_blank");
-      }, i * 300);
+        const a = document.createElement("a");
+        a.href = `/api/media/${id}/download`;
+        a.download = "";
+        a.style.display = "none";
+        document.body.appendChild(a);
+        a.click();
+        // Clean up after a short delay
+        setTimeout(() => document.body.removeChild(a), 1000);
+      }, i * 500);
     }
     toast.success(`Downloading ${ids.length} ${ids.length === 1 ? "file" : "files"}…`);
     exitSelectMode();

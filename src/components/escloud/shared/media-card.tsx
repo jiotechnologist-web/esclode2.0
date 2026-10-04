@@ -122,7 +122,7 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
     }
   };
 
-  // Regenerate video thumbnail + extract duration/width/height (admin only, videos only).
+  // Regenerate video thumbnail + extract duration/width/height (videos only).
   // Fixes videos that have a missing thumbnail or "0:00" duration.
   const handleRegenerateThumbnail = async (e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -138,11 +138,10 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mediaId: item.id }),
       });
+      const d = await r.json();
       if (!r.ok) {
-        const d = await r.json().catch(() => ({}));
         throw new Error(d.error ?? "Failed");
       }
-      const d = await r.json();
       if (d.success > 0) {
         toast.success("Thumbnail regenerated");
         if (typeof window !== "undefined") {
@@ -150,7 +149,9 @@ export function MediaCard({ item, view = "grid", onChange }: Props) {
         }
         onChange?.();
       } else {
-        toast.error("Could not generate thumbnail — the video format may not be supported.");
+        // Show the actual error from ffmpeg, not a generic "format not supported"
+        const errorMsg = d.error ?? d.errors?.[0]?.error ?? "Could not generate thumbnail — the video format may not be supported.";
+        toast.error(errorMsg);
       }
     } catch (e: any) {
       toast.error(e?.message ?? "Failed to regenerate thumbnail");

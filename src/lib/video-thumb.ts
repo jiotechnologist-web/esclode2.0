@@ -66,30 +66,25 @@ async function probeVideoMetadata(videoAbs: string): Promise<VideoMetadata> {
 /**
  * Try to generate a thumbnail at a specific timestamp.
  * Uses fast seek (-ss before -i) for speed + reliability.
- * IMPORTANT: -update 1 is required by ffmpeg 7.x to write a single frame
- * to a non-sequence filename (without it, ffmpeg treats the output as an
- * image sequence and may fail to write the file).
+ * -update 1 is required by ffmpeg 7.x for single-frame output.
+ * Returns { success: boolean, error?: string }.
  */
 async function tryGenerateAt(
   videoAbs: string,
   thumbAbs: string,
   seekSeconds: number
-): Promise<boolean> {
+): Promise<{ success: boolean; error?: string }> {
   const ts = formatTimecode(seekSeconds);
   try {
-    // -update 1 = allow writing to a single non-sequence filename
-    // -frames:v 1 = extract exactly one frame
-    // scale=480:-2 = 480px wide, preserve aspect ratio (must be even)
-    // -q:v 4 = high quality JPEG
     await execAsync(
-      `ffmpeg -y -ss ${ts} -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 -update 1 "${thumbAbs}"`,
+      `ffmpeg -y -ss ${ts} -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 -update 1 "${thumbAbs}" 2>&1`,
       { timeout: 30000 }
     );
     const stat = await fs.stat(thumbAbs).catch(() => null);
-    if (stat && stat.size > 0) return true;
-    return false;
-  } catch {
-    return false;
+    if (stat && stat.size > 0) return { success: true };
+    return { success: false, error: "Output file empty" };
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? "ffmpeg failed" };
   }
 }
 
@@ -97,19 +92,68 @@ async function tryGenerateAt(
  * Generate a thumbnail from a video.
  * PRIMARY: seek to exactly 2 seconds and capture that frame (user's request).
  * Fallbacks only if 2s fails.
+ * Returns the relative storage path + metadata + any error details.
  */
 export async function generateVideoThumbnail(
   videoAbs: string,
   mediaId: string
-): Promise<{ thumbnailRel: string; duration: number | null; width: number | null; height: number | null }> {
+): Promise<{
+  thumbnailRel: string;
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  error?: string;
+}> {
   const thumbName = `${mediaId}.jpg`;
   const thumbAbs = path.join(PATHS.THUMBNAILS, thumbName);
   await fs.mkdir(PATHS.THUMBNAILS, { recursive: true });
 
+  // First check if the file exists and is non-empty
+  try {
+    const stat = await fs.stat(videoAbs);
+    if (stat.size === 0) {
+      return {
+        thumbnailRel: "",
+        duration: null,
+        width: null,
+        height: null,
+        error: "Video file is empty (0 bytes) — upload may have failed",
+      };
+    }
+  } catch {
+    return {
+      thumbnailRel: "",
+      duration: null,
+      width: null,
+      height: null,
+      error: "Video file not found on disk",
+    };
+  }
+
+  // Check if ffprobe can read the file at all
+  let ffprobeWorks = false;
+  try {
+    await execAsync(`ffprobe -v error -show_entries format=duration "${videoAbs}"`, { timeout: 10000 });
+    ffprobeWorks = true;
+  } catch (e: any) {
+    console.error("[video-thumb] ffprobe cannot read file:", e?.message);
+  }
+
+  if (!ffprobeWorks) {
+    return {
+      thumbnailRel: "",
+      duration: null,
+      width: null,
+      height: null,
+      error: "Video file is corrupted or uses an unsupported codec (ffprobe cannot read it)",
+    };
+  }
+
+  // Probe metadata
   const meta = await probeVideoMetadata(videoAbs);
   const duration = meta.duration;
 
-  // PRIMARY: 2 seconds. Fallbacks: 1s, 0.5s, 0.1s, 0, then no-seek.
+  // Build the list of timestamps to try — 2s first (user's request)
   const seekAttempts: number[] = [2];
   if (duration && duration > 0) {
     if (duration > 2) {
@@ -134,13 +178,16 @@ export async function generateVideoThumbnail(
 
   let thumbnailSuccess = false;
   let usedSeek = 0;
+  let lastError = "";
   for (const seek of uniqueAttempts) {
     try { await fs.unlink(thumbAbs); } catch {}
-    if (await tryGenerateAt(videoAbs, thumbAbs, seek)) {
+    const result = await tryGenerateAt(videoAbs, thumbAbs, seek);
+    if (result.success) {
       thumbnailSuccess = true;
       usedSeek = seek;
       break;
     }
+    lastError = result.error ?? "";
   }
 
   // Last resort: no seek, decode from start
@@ -148,7 +195,7 @@ export async function generateVideoThumbnail(
     try { await fs.unlink(thumbAbs); } catch {}
     try {
       await execAsync(
-        `ffmpeg -y -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 -update 1 "${thumbAbs}"`,
+        `ffmpeg -y -i "${videoAbs}" -frames:v 1 -vf "scale=480:-2" -q:v 4 -update 1 "${thumbAbs}" 2>&1`,
         { timeout: 30000 }
       );
       const stat = await fs.stat(thumbAbs).catch(() => null);
@@ -156,15 +203,16 @@ export async function generateVideoThumbnail(
         thumbnailSuccess = true;
         usedSeek = 0;
       }
-    } catch (e) {
-      console.error("Video thumbnail generation failed completely:", e);
+    } catch (e: any) {
+      lastError = e?.message ?? "ffmpeg failed completely";
+      console.error("[video-thumb] All attempts failed:", lastError);
     }
   }
 
   if (thumbnailSuccess) {
     console.log(`[video-thumb] Thumbnail for ${mediaId} generated at ${usedSeek}s`);
   } else {
-    console.error(`[video-thumb] FAILED to generate thumbnail for ${mediaId}`);
+    console.error(`[video-thumb] FAILED to generate thumbnail for ${mediaId}: ${lastError}`);
   }
 
   const thumbnailRel = thumbnailSuccess ? getStorageRelativePath(thumbAbs) : "";
@@ -173,6 +221,7 @@ export async function generateVideoThumbnail(
     duration,
     width: meta.width,
     height: meta.height,
+    error: thumbnailSuccess ? undefined : lastError,
   };
 }
 

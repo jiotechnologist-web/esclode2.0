@@ -60,7 +60,11 @@ export async function POST(req: NextRequest) {
         if (result.thumbnailRel) success++;
         else {
           failed++;
-          errors.push({ id: v.id, name: v.name, error: "Thumbnail generation returned empty" });
+          errors.push({
+            id: v.id,
+            name: v.name,
+            error: result.error ?? "Thumbnail generation returned empty",
+          });
         }
       } catch (e: any) {
         failed++;
@@ -68,11 +72,14 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Return the first error in the top-level `error` field so the client can show it
+    const firstError = errors.length > 0 ? errors[0].error : undefined;
     return jsonOk({
       processed,
       success,
       failed,
       errors: errors.slice(0, 10),
+      error: firstError,
     });
   } catch (e: any) {
     return jsonError(e?.message ?? "Failed to regenerate thumbnails", 500);

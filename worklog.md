@@ -714,3 +714,81 @@ Stage Summary:
 - A sticky bulk action bar shows: Download, Move to Private, Move to Public, Delete
 - All bulk actions work via the existing /api/media/[id] PATCH + DELETE endpoints
 - The shared use-bulk-actions hook ensures consistent behavior across all pages
+
+---
+Task ID: master-v16
+Agent: Super Z (main)
+Task: Fix sidebar collapse overlap + thumbnail error reporting + bulk download
+
+Work Log:
+=== ISSUE 1: Sidebar collapse overlap ===
+- User reported: when sidebar is collapsed, the avatar "D" overlaps with the
+  theme/logout icons below it.
+- Root cause: when sidebar collapsed to 80px, the user footer section still
+  used "flex items-center gap-2" for the avatar row AND "flex items-center gap-1"
+  for the theme/logout button row. With only 80px width, the 4 buttons (light/
+  dark/system/logout) at flex-1 each were too narrow and the avatar row above
+  was wider than 80px causing overflow.
+- Fix in user-shell.tsx:
+  * Avatar row: when collapsed, use "justify-center" (centers the avatar)
+  * Theme/logout buttons: when collapsed, switch to "flex-col" (stack vertically)
+    and use "w-full" instead of "flex-1" so each button takes full width
+  * This prevents the horizontal overlap — buttons stack neatly below the avatar
+
+=== ISSUE 2: Thumbnail regenerate error ===
+- User reported: "Could not generate thumbnail — the video format may not be
+  supported" error when clicking Regenerate thumbnail.
+- Root cause: the old code showed a generic "format not supported" error
+  regardless of the actual ffmpeg failure reason. The real error could be:
+  empty file, file not found, corrupted file, ffprobe can't read it, etc.
+- Fix in src/lib/video-thumb.ts:
+  * Added file existence + size check before trying ffmpeg
+  * Added ffprobe readability check (if ffprobe can't read the file, no point
+    trying ffmpeg)
+  * tryGenerateAt now returns { success, error? } with the actual error message
+  * generateVideoThumbnail returns error field with the real ffmpeg error
+  * Added 2>&1 to ffmpeg commands to capture stderr in the error
+- Fix in regenerate-thumbnails endpoint:
+  * Returns the first error in the top-level `error` field so the client
+    can display it
+- Fix in media-card.tsx handleRegenerateThumbnail:
+  * Shows the ACTUAL error from the server (d.error or d.errors[0].error)
+    instead of a generic "format not supported" message
+  * Example: "Video file is empty (0 bytes) — upload may have failed"
+  * Example: "Video file is corrupted or uses an unsupported codec (ffprobe cannot read it)"
+
+=== ISSUE 3: Video duration showing 0:00 ===
+- User reported: uploaded a 1:35s video but it shows 0:00 duration.
+- Root cause: if ffprobe fails to extract the duration at upload time, the
+  duration stays null → displayed as 0:00. The thumbnail generation code now
+  has better ffprobe fallbacks (stream duration → format duration → width/
+  height only), and the -update 1 flag fix ensures the thumbnail is actually
+  written. With the improved probeVideoMetadata, duration should be extracted
+  for most valid videos.
+- For videos where ffprobe truly can't read the duration (corrupted file or
+  very unusual codec), the error is now properly reported to the user via
+  the Regenerate thumbnail error message.
+
+=== ISSUE 4: Bulk download only downloads first file ===
+- User reported: when selecting multiple videos/photos and clicking Download,
+  only the first file downloads, not all selected.
+- Root cause: the old implementation used window.open() for each download URL.
+  Browsers block multiple window.open() calls as popups — only the first one
+  goes through, the rest are silently blocked.
+- Fix in use-bulk-actions.ts:
+  * Replaced window.open() with programmatically-created <a> elements
+  * Each anchor has `download=""` attribute (triggers download, not navigation)
+  * Anchors are appended to document.body, clicked, then removed after 1s
+  * Each download is spaced 500ms apart to avoid browser blocking
+  * This is the standard pattern for multiple downloads in web apps
+
+=== VERIFICATION ===
+- Home page loads HTTP 200 ✓
+- Sidebar collapse: avatar centered, buttons stack vertically (no overlap) ✓
+- Thumbnail regeneration: success:1, failed:0 ✓
+- Thumbnail generated at 2s (dev log confirms) ✓
+- Duration: 9.5s (correctly extracted) ✓
+- Better error reporting: server returns actual ffmpeg error ✓
+- Bulk download: uses <a download> elements instead of window.open() ✓
+- TypeScript check: no new errors ✓
+- Dev server log: no errors ✓
